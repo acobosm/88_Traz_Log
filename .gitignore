@@ -1,4 +1,13 @@
+# Configuraciones y variables de entorno
 src/config/config.js
-blockchain_state.json
-node_modules/
 .env
+
+# Paquetes de node
+node_modules/
+
+# Estado de la cadena de bloques
+blockchain_state.json
+
+# Backups temporales
+*.backup
+*_backup

@@ -1,0 +1,12 @@
+{
+    "name": "88_traz_log",
+    "version": "1.0.0",
+    "description": "Sistema de Trazabilidad Logística Global para Incendios Forestales",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "dependencies": {
+        "@openzeppelin/contracts": "^4.9.3"
+    }
+}

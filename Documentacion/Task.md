@@ -1,14 +1,14 @@
 # Project Checklist: 88_Trazabilidad_Logistica
 
-- [/] Fase 1: Configuración, Persistencia y Conectividad
-    - [/] Configurar Anvil con 20 cuentas y `--state blockchain_state.json`
-    - [/] Establecer variable de IP local configurable
-    - [ ] Realizar capturas y **subir a repositorios**
-- [ ] Fase 2: Smart Contract e Inventario Real
-    - [ ] Revisar PDFs de informes reales en `Documentacion`
-    - [ ] Implementar `TrazabilidadLogistica.sol` (Roles, Registro)
-    - [ ] Desplegar contrato e inventario inicial
-    - [ ] **Subir a repositorios**
+- [x] Fase 1: Configuración, Persistencia y Conectividad
+    - [x] Configurar Anvil con 20 cuentas y `--state blockchain_state.json`
+    - [x] Establecer variable de IP local configurable
+    - [x] Realizar capturas y **subir a repositorios**
+- [x] Fase 2: Smart Contract e Inventario Real
+    - [x] Revisar PDFs de informes reales en `Documentacion`
+    - [x] Implementar `TrazabilidadLogistica.sol` (Roles, Registro)
+    - [x] Desplegar contrato e inventario inicial
+    - [x] **Subir a repositorios**
 - [ ] Fase 3: Gestión de Incidentes
     - [ ] Implementar funciones de combate (Eventos, Hitos)
     - [ ] Realizar pruebas unitarias y capturas

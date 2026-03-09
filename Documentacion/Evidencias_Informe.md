@@ -110,10 +110,52 @@ Genesis Number
 
 Listening on 0.0.0.0:8545
 
+### Archivos de Referencia - Fase 1
+- [start_anvil.sh](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz%20Log/scripts/start_anvil.sh) - Script de arranque persistente.
+- [config.js](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz%20Log/src/config/config.js) - Configuración centralizada de IP y cuentas.
+
+
 
 
 ## Fase 2: Smart Contract e Inventario Real
-*Pendiente de ejecución*
+
+Desarrollo del Smart Contract `TrazabilidadLogistica.sol`:
+- Implementación de roles con `AccessControl`.
+- Estructuras para `Personal`, `Insumo`, `EventoIncendio` y `LogOperativo`.
+- Funciones de registro, asignación y auditoría.
+
+Listado de Insumos Reales identificados para carga inicial (Nomenclatura ID-XXYYY):
+1. **ID-HZ001**: Herramienta de Zapa (Raspado)
+2. **ID-MA001**: Machete de corte denso
+3. **ID-PL001**: Pulaski (Hacha/Azadón)
+4. **ID-MC001**: McLeod (Suelo Mineral)
+5. **ID-BF001/010**: Batefuegos (10 unidades individuales)
+6. **ID-PA001**: Pala Forestal
+7. **ID-MB001**: Motobomba Mark-3
+8. **ID-MG001**: Manguera de incendio
+9. **ID-MX001**: Mochila de Agua (20L)
+10. **ID-V4001**: Vehículo 4x4 Brigada
+11. **ID-AM001**: Ambulancia
+12. **ID-TC001**: Tanquero Cisterna (2000G)
+13. **ID-RD001**: Radio Motorola DGP
+14. **ID-GP001**: GPS Garmin
+15. **ID-CS/GT/BT/MS**: Equipo de Protección (EPI)
+
+**Sincronización y Auditoría Automática:**
+- Configuración de `TIMEZONE_OFFSET: -5` en `config.js` para visualización local de eventos registrados en UTC (Ecuador).
+- **Auditoría de Consumo**: El sistema calcula `ConsumoEsperado = (TiempoUso * consumoNominal)` y genera alertas ante desviaciones significativas (>20%) entre el reporte de campo y el consumo nominal.
+- Lógica de integridad mediante comparación de `EstadoInsumo` (Base) y `EstadoReportado` (Campo).
+
+[Captura_Contrato_Solidity](02_Contrato_Solidity.png)
+
+[Captura_Inventario_Cargado](02_Inventario_Cargado.png)
+
+### Archivos de Referencia - Fase 2
+- [TrazabilidadLogistica.sol](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/contracts/TrazabilidadLogistica.sol) - Lógica del Smart Contract.
+- [seed_inventory.js](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/scripts/seed_inventory.js) - Script de carga de inventario real.
+- [package.json](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/package.json) - Gestión de dependencias (OpenZeppelin).
+
+*Siguiente paso: Despliegue en Anvil y verificación de roles.*
 
 ## Fase 3: Gestión de Incidentes
 *Pendiente de ejecución*
