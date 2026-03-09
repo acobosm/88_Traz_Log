@@ -1,0 +1,4 @@
+src/config/config.js
+blockchain_state.json
+node_modules/
+.env

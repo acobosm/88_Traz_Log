@@ -1,0 +1,11 @@
+const CONFIG = {
+    LOCAL_IP: "aaa.bbb.ccc.ddd", // IP para que otros se conecten (Front-end) - requiere modificación
+    BIND_IP: "0.0.0.0",       // IP para que el servidor escuche (Back-end) - no requiere modificación
+    ANVIL_ACCOUNTS: 20,       // Número de cuentas a crear - requiere modificación a modo opcional
+    STATE_FILE: "blockchain_state.json" // Archivo de estado - no requiere modificación
+};
+
+
+if (typeof module !== 'undefined') {
+    module.exports = CONFIG;
+}
