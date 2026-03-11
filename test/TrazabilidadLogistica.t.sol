@@ -381,4 +381,41 @@ contract TrazabilidadLogisticaTest is Test {
         vm.expectRevert();
         trazabilidad.pause();
     }
+
+    function test_RevertWhen_AbrirEventoIncendioSinRol() public {
+        vm.prank(civil);
+        vm.expectRevert();
+        trazabilidad.abrirEventoIncendio("0,0", 1);
+    }
+
+    function test_RevertWhen_RegistrarHitoSinCustodio() public {
+        address operador2 = address(99);
+        vm.prank(admin);
+        trazabilidad.registrarPersonal(
+            operador2,
+            "Segundo Operador",
+            "Apoyo",
+            OPERADOR_ROLE
+        );
+
+        vm.prank(base);
+        bytes32 codigo = keccak256("ID-HITO-FAIL");
+        trazabilidad.registrarInsumo(codigo, "Test", 0);
+
+        vm.prank(jefe);
+        trazabilidad.abrirEventoIncendio("0,0", 1);
+
+        vm.prank(jefe);
+        trazabilidad.asignarInsumo(1, codigo, operador);
+
+        // Operador 2 tiene el ROL, pero NO es el custodio de este ítem
+        vm.prank(operador2);
+        vm.expectRevert("No es el custodio");
+        trazabilidad.registrarHito(
+            1,
+            codigo,
+            "Fallo",
+            TrazabilidadLogistica.EstadoReportado.Operativo
+        );
+    }
 }

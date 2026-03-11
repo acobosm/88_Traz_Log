@@ -298,7 +298,7 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
         if (insumo.consumoNominal > 0 && insumo.inicioUso > 0) {
             uint256 tiempoUsoSegundos = block.timestamp - insumo.inicioUso;
             // Cálculo: (Tiempo en horas) * consumoNominal
-            // Usamos base de segundos para mayor precisión
+            // Usamos base de segundos para mayor precisión.
             uint256 consumoEsperado = (tiempoUsoSegundos *
                 insumo.consumoNominal) / 3600;
 

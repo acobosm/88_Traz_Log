@@ -4,7 +4,9 @@
     "description": "Sistema de Trazabilidad Logística Global para Incendios Forestales",
     "main": "index.js",
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "monitor": "./scripts/monitor.sh",
+        "log": "node scripts/logger.js",
+        "test": "forge test"
     },
     "dependencies": {
         "@openzeppelin/contracts": "^4.9.3"

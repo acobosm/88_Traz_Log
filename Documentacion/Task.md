@@ -24,11 +24,12 @@
         - [x] Probar robustez (Salto de duplicados)
         - [x] Generar plantilla .csv para bases operativas
     - [x] **Subir a repositorios**
-- [ ] Fase 4: Interfaz Web3 y Monitoreo (tmux)
+- [/] Fase 4: Interfaz Web3 y Monitoreo (tmux)
+    - [/] Crear script `monitor.sh` con layout dinámico de tmux
+    - [ ] Implementar sistema de logs operativos (`logs/operaciones.log`)
     - [ ] Desarrollar UI base para carga de datos y coordenadas
     - [ ] Implementar botón de descarga de plantilla CSV
-    - [ ] Configurar visualización de logs de Anvil y Frontend
-    - [ ] Desarrollar UI para carga de inventario y coordenadas
+    - [ ] Configurar visualización de logs de Anvil y Frontend en tmux
     - [ ] **Subir a repositorios**
 - [ ] Fase 5: Panel de Control FireOps
     - [ ] Integrar botón "Panel de Control" en interfaz Web3
