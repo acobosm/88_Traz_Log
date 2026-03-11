@@ -2,8 +2,10 @@
 src/config/config.js
 .env
 
-# Paquetes de node
+# Dependencias y Paquetes
 node_modules/
+package-lock.json
+lib/
 
 # Estado de la cadena de bloques
 blockchain_state.json
@@ -11,3 +13,9 @@ blockchain_state.json
 # Backups temporales
 *.backup
 *_backup
+
+# Foundry (Compilación y Logs)
+out/
+cache/
+broadcast/
+*.log

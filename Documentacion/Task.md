@@ -9,13 +9,26 @@
     - [x] Implementar `TrazabilidadLogistica.sol` (Roles, Registro)
     - [x] Desplegar contrato e inventario inicial
     - [x] **Subir a repositorios**
-- [ ] Fase 3: Gestión de Incidentes
-    - [ ] Implementar funciones de combate (Eventos, Hitos)
-    - [ ] Realizar pruebas unitarias y capturas
-    - [ ] **Subir a repositorios**
-- [ ] Fase 4: Interfaz Web3 de Despliegue
-    - [ ] Desarrollar UI para carga de datos y coordenadas
-    - [ ] Sincronizar con la IP local variable
+- [/] Fase 3: Gestión de Incidentes - Pruebas e Integridad
+    - [x] Configurar entorno Foundry (`foundry.toml`, `lib/openzeppelin`)
+    - [x] Crear suite de pruebas exhaustiva (Cobertura >80%)
+        - [x] Flujos principales (Consumo, Discrepancias)
+        - [x] Pruebas unitarias por función (9 funciones)
+        - [x] Pruebas de seguridad (Reverts por roles y estados)
+    - [x] Documentar análisis de costos financieros (USD)
+    - [x] Desplegar contrato en Anvil persistente
+    - [x] Cargar inventario masivo (Seed)
+    - [x] Implementar función de carga masiva (Batch)
+        - [x] Añadir `registrarInsumosBatch` al .sol (Versión Idempotente)
+        - [x] Crear tests en .t.sol
+        - [x] Probar robustez (Salto de duplicados)
+        - [x] Generar plantilla .csv para bases operativas
+    - [x] **Subir a repositorios**
+- [ ] Fase 4: Interfaz Web3 y Monitoreo (tmux)
+    - [ ] Desarrollar UI base para carga de datos y coordenadas
+    - [ ] Implementar botón de descarga de plantilla CSV
+    - [ ] Configurar visualización de logs de Anvil y Frontend
+    - [ ] Desarrollar UI para carga de inventario y coordenadas
     - [ ] **Subir a repositorios**
 - [ ] Fase 5: Panel de Control FireOps
     - [ ] Integrar botón "Panel de Control" en interfaz Web3

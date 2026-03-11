@@ -141,28 +141,52 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
     }
 
     function registrarInsumo(
-        bytes32 _codigo,
-        string memory _descripcion,
-        uint256 _consumoNominal
-    ) external onlyRole(BASE_OPERATIVA_ROLE) {
+        bytes32 codigo,
+        string calldata descripcion,
+        uint256 consumoNominal
+    ) public onlyRole(BASE_OPERATIVA_ROLE) whenNotPaused {
         require(
-            inventario[_codigo].codigoInventario == bytes32(0),
-            "Insumo ya existe"
+            inventario[codigo].codigoInventario == bytes32(0),
+            "El insumo ya esta registrado"
         );
-
-        inventario[_codigo] = Insumo({
-            codigoInventario: _codigo,
-            descripcion: _descripcion,
+        inventario[codigo] = Insumo({
+            codigoInventario: codigo,
+            descripcion: descripcion,
             basePropietaria: msg.sender,
-            custodioActual: address(0),
+            custodioActual: msg.sender,
             estado: EstadoInsumo.Disponible,
             estadoReportadoF2: EstadoReportado.Operativo,
             ultimoMantenimiento: block.timestamp,
-            consumoNominal: _consumoNominal,
+            consumoNominal: consumoNominal,
             inicioUso: 0
         });
+        emit InsumoRegistrado(codigo, descripcion, msg.sender);
+    }
 
-        emit InsumoRegistrado(_codigo, _descripcion, msg.sender);
+    /**
+     * @dev Registra múltiples insumos en una sola transacción para optimizar gas y facilitar carga masiva (CSV).
+     * @param codigos Arreglo de identificadores únicos.
+     * @param descripciones Arreglo de nombres/descripciones.
+     * @param consumos Arreglo de consumos nominales (ml/h).
+     */
+    function registrarInsumosBatch(
+        bytes32[] calldata codigos,
+        string[] calldata descripciones,
+        uint256[] calldata consumos
+    ) external onlyRole(BASE_OPERATIVA_ROLE) whenNotPaused nonReentrant {
+        require(
+            codigos.length == descripciones.length &&
+                codigos.length == consumos.length,
+            "Longitud de arreglos inconsistente"
+        );
+
+        for (uint256 i = 0; i < codigos.length; i++) {
+            // Salto Silencioso (Idempotencia): Solo registramos si NO existe
+            if (inventario[codigos[i]].codigoInventario == bytes32(0)) {
+                registrarInsumo(codigos[i], descripciones[i], consumos[i]);
+            }
+            // Si ya existe, simplemente lo ignoramos para no romper el lote
+        }
     }
 
     // --- Funciones Fase 2: Gestión de Incidentes ---

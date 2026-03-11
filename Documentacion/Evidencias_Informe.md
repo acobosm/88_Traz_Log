@@ -6,9 +6,9 @@ Este documento servirá como el registro oficial de capturas de pantalla, logs y
 
 Conexión a Anvil mediante script
 
-![01_Conexion_Anvil01](01_Conexion_Anvil01.png)
-![01_Conexion_Anvil02](01_Conexion_Anvil02.png)
-![01_Conexion_Anvil03](01_Conexion_Anvil03.png)
+![01_Conexion_Anvil01](imagenes/01_Conexion_Anvil01.png)
+![01_Conexion_Anvil02](imagenes/01_Conexion_Anvil02.png)
+![01_Conexion_Anvil03](imagenes/01_Conexion_Anvil03.png)
 
 ebit@DESKTOP-QKHOJLB:~/projects/0 CodeCrypto Academy/03 Ethereum Practice/Intro a Proyectos de Entrenamiento/Proyectos obligatorios/88_Traz_Log$ ./scripts/start_anvil.sh
 Configuración detectada en config.js:
@@ -146,19 +146,88 @@ Listado de Insumos Reales identificados para carga inicial (Nomenclatura ID-XXYY
 - **Auditoría de Consumo**: El sistema calcula `ConsumoEsperado = (TiempoUso * consumoNominal)` y genera alertas ante desviaciones significativas (>20%) entre el reporte de campo y el consumo nominal.
 - Lógica de integridad mediante comparación de `EstadoInsumo` (Base) y `EstadoReportado` (Campo).
 
-[Captura_Contrato_Solidity](02_Contrato_Solidity.png)
-
-[Captura_Inventario_Cargado](02_Inventario_Cargado.png)
-
 ### Archivos de Referencia - Fase 2
 - [TrazabilidadLogistica.sol](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/contracts/TrazabilidadLogistica.sol) - Lógica del Smart Contract.
-- [seed_inventory.js](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/scripts/seed_inventory.js) - Script de carga de inventario real.
-- [package.json](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/package.json) - Gestión de dependencias (OpenZeppelin).
+- [seed_inventory.js](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz%20Log/scripts/seed_inventory.js) - Script de carga de inventario real.
+- [package.json](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz%20Log/package.json) - Gestión de dependencias (OpenZeppelin).
 
-*Siguiente paso: Despliegue en Anvil y verificación de roles.*
+## Fase 3: Gestión de Incidentes - Pruebas e Integridad
 
-## Fase 3: Gestión de Incidentes
-*Pendiente de ejecución*
+Se ha validado la lógica del contrato mediante una suite de **14 pruebas unitarias** en **Foundry**, asegurando una cobertura integral de los controles de acceso, la lógica de combate y la auditoría automática.
+
+### Pruebas Unitarias Ejecutadas:
+- `testRegistroInsumo`: Verifica la carga de datos y consumo nominal.
+- `testFlujoIncidenteyConsumo`: Simula el ciclo completo de un incendio y valida la **Alerta de Consumo** automática.
+- `testDiscrepanciaEstado`: Valida alertas ante inconsistencias en el reporte físico.
+- **Tests de Seguridad**: 5 pruebas de reversión que validan que solo usuarios autorizados (Roles) puedan ejecutar funciones críticas.
+- **Tests de Emergencia**: Verificación del sistema de Pausa (`Pausable`).
+
+**Resultados de la Consola (Foundry):**
+```bash
+Ran 16 tests for test/TrazabilidadLogistica.t.sol:TrazabilidadLogisticaTest
+[PASS] testAbrirEventoIncendio() (gas: 167803)
+[PASS] testAsignarInsumo() (gas: 464200)
+[PASS] testCerrarIncidente() (gas: 170667)
+[PASS] testPausaYEmergencia() (gas: 180702)
+[PASS] testRegistrarHito() (gas: 585456)
+[PASS] testRegistrarInsumosBatch() (gas: 318768)
+[PASS] testRegistrarInsumosBatchSilentSkip() (gas: 322001)
+[PASS] testRegistrarPersonal() (gas: 139984)
+[PASS] testRegistroInsumo() (gas: 163150)
+[PASS] testRetornoConAlertaConsumo() (gas: 452589)
+[PASS] testRetornoConDiscrepanciaEstado() (gas: 572250)
+[PASS] test_RevertWhen_AsignarInsumoNoDisponible() (gas: 465086)
+[PASS] test_RevertWhen_CerrarIncidentePorOperador() (gas: 202491)
+[PASS] test_RevertWhen_PausaSinAdmin() (gas: 48770)
+[PASS] test_RevertWhen_RegistrarPersonalSinAdmin() (gas: 51305)
+[PASS] test_RevertWhen_RegistroInsumoDuplicado() (gas: 140301)
+Suite result: ok. 16 passed; 0 failed; 0 skipped
+```
+
+> [!IMPORTANTE]
+> **Análisis de Viabilidad Financiera (Mainnet/Sepolia)**
+> Considerando un costo de red típico de **20 Gwei** (Gas Price) y un valor de mercado de **$2,300 USD por ETH**, el costo operativo del sistema se desglosa de la siguiente manera:
+> - **Despliegue Único**: ~3.2M de gas -> **$149.74 USD** (Inversión inicial en infraestructura).
+> - **Costo Operativo Promedio**: Un registro completo de incidente (apertura, asignación de equipo, hito y cierre) consume un promedio de 450k de gas, lo que equivale a **$20.70 USD** por evento.
+> - **Consulta de Datos**: Las funciones de consulta (lectura) no generan costo de gas para el usuario final desde la interfaz.
+
+#### Mapeo de Funciones vs Tests (Blindaje del Smart Contract)
+Esta tabla detalla cómo cada una de las **9 funciones** del contrato está protegida por la suite de pruebas, incluyendo escenarios de éxito y controles de seguridad (Bloqueos/Reverts).
+
+| # | Función del Contrato (`.sol`) | Tests de Prueba (`.t.sol`) | ¿Qué se evalúa? |
+| :--- | :--- | :--- | :--- |
+| **1** | `registrarPersonal` | `testRegistrarPersonal` | **Éxito**: El admin registra un brigadista. |
+| | | `test_RevertWhen_RegistrarPersonalSinAdmin` | **Fallo**: Un usuario sin rol intenta registrar personal. |
+| **2** | `registrarInsumo` | `testRegistroInsumo` | **Operación**: Registro individual de ítems. |
+| **2.1** | `registrarInsumosBatch` | `testRegistrarInsumosBatch` | **Eficiencia**: Carga masiva (CSV) con una sola firma. |
+| | | `testRegistrarInsumosBatchSilentSkip` | **Robustez**: Salto silencioso si detecta duplicados. |
+| | | `test_RevertWhen_RegistroInsumoDuplicado` | **Seguridad**: Evitar duplicados en registro manual unitario. |
+| **3** | `abrirEventoIncendio` | `testAbrirEventoIncendio` | **Éxito**: Creación de bitácora con coordenadas. |
+| **4** | `asignarInsumo` | `testAsignarInsumo` | **Éxito**: Entrega de equipo al brigadista. |
+| | | `test_RevertWhen_AsignarInsumoNoDisponible` | **Fallo**: Entregar equipo que ya está en el campo. |
+| **5** | `registrarHito` | `testRegistrarHito` | **Éxito**: Reporte de actividad desde el incendio. |
+| **6** | `cerrarIncidente` | `testCerrarIncidente` | **Éxito**: Cierre de bitácora por el Jefe de Escena. |
+| | | `test_RevertWhen_CerrarIncidentePorOperador` | **Seguridad**: Un operador NO puede cerrar el evento. |
+| **7** | `retornarInsumo` | `testRetornoConAlertaConsumo` | **Lógica**: Auditoría automática de combustible/agua. |
+| | | `testRetornoConDiscrepanciaEstado` | **Integridad**: Alerta si el estado físico es distinto al reportado. |
+| **8** | `pause` | `testPausaYEmergencia` | **Operación**: Congelar el contrato por emergencia. |
+| | | `test_RevertWhen_PausaSinAdmin` | **Seguridad**: Solo el admin puede pausar. |
+| **9** | `unpause` | `testPausaYEmergencia` | **Operación**: Reactivar el contrato tras una pausa. |
+
+![02_Tests_Foundry](imagenes/02_Test_de_Prueba01.png)
+![02_Tests_Foundry_Costos02](imagenes/02_Test_de_Prueba02_Costo_Gas.png)
+![02_Tests_Foundry_Costos03](imagenes/02_Test_de_Prueba03_Costo_Gas.png)
+![02_Tests_Foundry_Costos04](imagenes/02_Test_de_Prueba04_Costo_Gas.png)
+
+### Despliegue en Red Local (Anvil)
+- **Dirección del Contrato**: `0x5FbDB2315678afecb367f032d93F642f64180aa3`
+- **Hash de Despliegue**: `0x7410016d8bf21e91e34d34be03a74f27a2d873629fe74836788073cab5c02dac`
+- **Carga de Inventario (Seed)**: 23 ítems registrados exitosamente (Hash: `0xf9f38a82...`).
+- **Estado Técnico**: Contrato verificado, funcional y con gobernanza de roles activa.
+
+### Archivos de Referencia - Fase 3
+- [TrazabilidadLogistica.t.sol](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/test/TrazabilidadLogistica.t.sol) - Suite de pruebas unitarias.
+- [foundry.toml](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/foundry.toml) - Configuración del entorno de pruebas.
 
 ## Fase 4: Interfaz Web3 de Despliegue
 *Pendiente de ejecución*

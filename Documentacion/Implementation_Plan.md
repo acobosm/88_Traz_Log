@@ -24,17 +24,28 @@ Este plan detalla el desarrollo fase por fase del sistema de trazabilidad para i
 
 ---
 
-### Fase 3: Smart Contract - Gestión de Incidentes
-- Implementar funciones para abrir eventos, asignar recursos y reportar hitos.
-- Pruebas unitarias de integridad.
-- **Entregable**: Lógica de combate validada y **Subida a GitLab/GitHub**.
+### Fase 3: Gestión de Incidentes - Pruebas e Integridad
+- Configurar el entorno de pruebas con **Foundry**.
+- Desarrollar `test/TrazabilidadLogistica.t.sol` para validar:
+    - Control de acceso por roles (`BASE_OPERATIVA`, `JEFE_ESCENA`, etc.).
+    - Ciclo de vida del incendio (Inicio, Asignación de recursos, Hitos).
+    - **Auditoría Automática**: Validar que la alerta de consumo se dispare ante desviaciones del >20%.
+- ### [MODIFY] [TrazabilidadLogistica.sol](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/contracts/TrazabilidadLogistica.sol)
+- Implementar función `registrarInsumosBatch` con lógica de **Salto Silencioso (Idempotencia)**.
+- El contrato validará si cada ID existe antes de registrarlo: si no existe lo registra, si existe lo ignora sin revertir la transacción completa.
+- Optimizar consumo de gas mediante el uso de calldata y arreglos concurrentes.
+- Ejecutar despliegue inicial en Anvil y cargar el inventario real (`seed_inventory.js`).
+- **Entregable**: Lógica validada, capturas de tests exitosos y **Subida a GitLab/GitHub**.
 
 ---
 
-### Fase 4: Interfaz Web3 de Despliegue
-- Crear la interfaz para cargar datos del evento y coordenadas iniciales.
-- Validar accesibilidad desde la IP local configurada.
-- **Entregable**: Interfaz de despliegue operativa y **Subida a GitLab/GitHub**.
+### Fase 4: Interfaz Web3 y Monitoreo (tmux)
+- Crear script `scripts/monitor.sh` para gestionar servicios en **tmux**:
+    - Disposición dinámica: 2 servicios (Anvil/Vite) en split de 2; 3-4 servicios en split de 4.
+    - Soporte para múltiples ventanas si exceden los 4 servicios (layout 2x2).
+- Desarrollar UI base para carga de datos y coordenadas.
+- Implementar botón de descarga de `plantilla_inventario.csv` para las bases operativas.
+- **Entregable**: Consola de monitoreo operativa y UI funcional sincronizada con Anvil.
 
 ---
 
