@@ -153,22 +153,24 @@ Listado de Insumos Reales identificados para carga inicial (Nomenclatura ID-XXYY
 
 ## Fase 3: Gestión de Incidentes - Pruebas e Integridad
 
-Se ha validado la lógica del contrato mediante una suite de **18 pruebas unitarias** en **Foundry**, asegurando una cobertura integral de los controles de acceso, la lógica de combate y la auditoría automática.
+Se ha balidado la lógica del contrato mediante una suite de **21 pruebas unitarias** en **Foundry**, asegurando una cobertura integral de los controles de acceso, la lógica de combate y la auditoría automática.
 
 ### Pruebas Unitarias Ejecutadas:
 - `testRegistroInsumo`: Verifica la carga de datos y consumo nominal.
 - `testFlujoIndidenteyConsumo`: Simula el ciclo completo de un incendio y valida la **Alerta de Consumo** automática.
 - `testDiscrepanciaEstado`: Valida alertas ante inconsistencias en el reporte físico.
-- **Tests de Seguridad**: 7 pruebas de reversión que validan que solo usuarios autorizados (Roles) puedan ejecutar funciones críticas.
+- `testRegistrarBitacoraTactica`: Verifica el registro de pines y zonas por el Jefe de Escena.
+- **Tests de Seguridad**: 9 pruebas de reversión que validan que solo usuarios autorizados (Roles) puedan ejecutar funciones críticas.
 - **Tests de Emergencia**: Verificación del sistema de Pausa (`Pausable`).
 
 **Resultados de la Consola (Foundry):**
 ```bash
-Ran 18 tests for test/TrazabilidadLogistica.t.sol:TrazabilidadLogisticaTest
+Ran 21 tests for test/TrazabilidadLogistica.t.sol:TrazabilidadLogisticaTest
 [PASS] testAbrirEventoIncendio() (gas: 167869)
 [PASS] testAsignarInsumo() (gas: 464287)
 [PASS] testCerrarIncidente() (gas: 170623)
 [PASS] testPausaYEmergencia() (gas: 180680)
+[PASS] testRegistrarBitacoraTactica() (gas: 335116)
 [PASS] testRegistrarHito() (gas: 585412)
 [PASS] testRegistrarInsumosBatch() (gas: 318856)
 [PASS] testRegistrarInsumosBatchSilentSkip() (gas: 321979)
@@ -180,10 +182,12 @@ Ran 18 tests for test/TrazabilidadLogistica.t.sol:TrazabilidadLogisticaTest
 [PASS] test_RevertWhen_AsignarInsumoNoDisponible() (gas: 465064)
 [PASS] test_RevertWhen_CerrarIncidentePorOperador() (gas: 202557)
 [PASS] test_RevertWhen_PausaSinAdmin() (gas: 48748)
+[PASS] test_RevertWhen_RegistrarBitacoraTacticaEventoCerrado() (gas: 168910)
+[PASS] test_RevertWhen_RegistrarBitacoraTacticaSinRol() (gas: 203042)
 [PASS] test_RevertWhen_RegistrarHitoSinCustodio() (gas: 585207)
 [PASS] test_RevertWhen_RegistrarPersonalSinAdmin() (gas: 51394)
 [PASS] test_RevertWhen_RegistroInsumoDuplicado() (gas: 140368)
-Suite result: ok. 18 passed; 0 failed; 0 skipped
+Suite result: ok. 21 passed; 0 failed; 0 skipped
 ```
 
 #### Reporte de Cobertura (Foundry Coverage)
@@ -191,7 +195,7 @@ Tras la implementación de los 18 tests, se ha alcanzado una cobertura del **100
 
 | Archivo | Funciones | Líneas | Sentencias | Branches |
 | :--- | :--- | :--- | :--- | :--- |
-| `TrazabilidadLogistica.sol` | **100.00%** | **100.00%** | **100.00%** | **75.00%** |
+| `TrazabilidadLogistica.sol` | **100.00%** | **100.00%** | **100.00%** | **77.27%** |
 
 > [!NOTE]
 > La cobertura de "Branches" del 75% es el máximo técnico posible, dado que los modificadores de OpenZeppelin (`AccessControl`, `ReentrancyGuard`) contienen bifurcaciones de seguridad internas propias de la librería.
@@ -220,6 +224,9 @@ Esta tabla detalla cómo cada una de las **9 funciones** del contrato está prot
 | | | `test_RevertWhen_AsignarInsumoNoDisponible` | **Fallo**: Entregar equipo que ya está en el campo. |
 | **5** | `registrarHito` | `testRegistrarHito` | **Éxito**: Reporte de actividad desde el incendio. |
 | | | `test_RevertWhen_RegistrarHitoSinCustodio` | **Seguridad**: Solo el custodio actual puede reportar hitos. |
+| **5.1** | `registrarBitacoraTactica` | `testRegistrarBitacoraTactica` | **Operación**: Registro de pines/zonas por el Jefe. |
+| | | `test_RevertWhen_RegistrarBitacoraTacticaSinRol` | **Seguridad**: Solo el Jefe de Escena puede registrar hitos tácticos. |
+| | | `test_RevertWhen_RegistrarBitacoraTacticaEventoCerrado` | **Integridad**: No permite añadir hitos a eventos cerrados. |
 | **6** | `cerrarIncidente` | `testCerrarIncidente` | **Éxito**: Cierre de bitácora por el Jefe de Escena. |
 | | | `test_RevertWhen_CerrarIncidentePorOperador` | **Seguridad**: Un operador NO puede cerrar el evento. |
 | **7** | `retornarInsumo` | `testRetornoConAlertaConsumo` | **Lógica**: Auditoría automática de combustible/agua. |
@@ -281,6 +288,15 @@ Se ha implementado una interfaz táctica de "Clase Mundial" que permite la gesti
 **Consola de Monitoreo (Layout Tmux):**
 - Ejecución exitosa de `./scripts/monitor.sh` unificando todos los servicios en una sola sesión de terminal.
 
+#### Saneamiento de Entorno (Tactical Flush)
+Se ha incorporado el script `scripts/purge.sh` para garantizar una ejecución limpia del ecosistema ante reinicios del sistema o conflictos de caché:
+- **Reseteo de Nonces**: Elimina `blockchain_state.json` para evitar discrepancias de contador de transacciones en Anvil.
+- **Limpieza de Artefactos**: Purga los directorios `out`, `cache` y `broadcast` de Foundry.
+- **Sincronización de Frontend**: Limpia los ABIs generados en el frontend para forzar una re-sincronización tras el despliegue.
+
+> [!CAUTION]
+> **Uso Recomendado**: Debe ejecutarse antes de un nuevo `npm run monitor` si se han modificado contratos o si la persistencia de Anvil genera errores de conexión.
+
 ### Actualización de Infraestructura (Red Local):
 - **Nueva Dirección del Contrato (Limpio)**: `0x84ea74d481ee0a5332c457a4d796187f6ba67feb`
 - **Estado del Inventario**: 25 registros totales validados on-chain.
@@ -292,10 +308,29 @@ Se ha implementado una interfaz táctica de "Clase Mundial" que permite la gesti
 - [index.css](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/frontend/src/index.css) - Definición de Skins y Estética Táctica.
 - [TrazabilidadLogistica.t.sol](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/test/TrazabilidadLogistica.t.sol#L105-154) - Tests de Batch e Idempotencia.
 
-## Fase 5: Panel de Control FireOps
-*Pendiente de ejecución*
+### Fase 5: Panel de Control FireOps
 
-## Fase 6: Auditoría, Gestión de Identidad y Cierre
+Se ha iniciado el despliegue del **Centro de Mando Táctico** para el Jefe de Escena, uniendo la potencia de la blockchain con la visualización geoespacial avanzada.
+
+#### Evolución Tecnológica:
+1. **Integración de Leaflet**: Se ha implementado un visor persistente basado en la librería Leaflet que permite la visualización táctica sobre cartografía satelital (Esri).
+2. **Bitácora Táctica Inmutable**: Se ha ampliado el Smart Contract con la función `registrarBitacoraTactica` para guardar marcas de peligro y ubicación de recursos.
+<!-- FASE 5 (Hiden for Phase 4 push)
+3. **Gestión de Identidad (Mapping vs Array)**: Se ha implementado una mejora estructural para permitir la enumeración de brigadistas en el frontend (ver detalle abajo).
+-->
+4. **Control de Acceso**: Solo los usuarios con el rol `JEFE_ESCENA_ROLE` pueden interactuar con este panel.
+
+---
+
+<!-- FASE 5: DETALLE TÉCNICO (Hiden for Phase 4 push)
+### Detalle Técnico: Mapping vs. Array en Gestión de Personal
+...
+---
+-->
+
+---
+
+## Fase 6: Auditoría de Consumo e Integridad
 *Pendiente de ejecución*
 
 ## Fase 7: Cierre y Documentación Final

@@ -418,4 +418,52 @@ contract TrazabilidadLogisticaTest is Test {
             TrazabilidadLogistica.EstadoReportado.Operativo
         );
     }
+
+    function testRegistrarBitacoraTactica() public {
+        vm.prank(jefe);
+        trazabilidad.abrirEventoIncendio("0,0", 3);
+
+        vm.prank(jefe);
+        trazabilidad.registrarBitacoraTactica(
+            1,
+            '{"type":"pin", "latlng":[-1, -78], "pinType":"engine"}'
+        );
+
+        (
+            uint256 eventoID,
+            bytes32 codigoInsumo,
+            address operador,
+            ,
+            string memory detalles,
+
+        ) = trazabilidad.bitacoraEvento(1, 0);
+        assertEq(eventoID, 1);
+        assertEq(codigoInsumo, bytes32(0));
+        assertEq(operador, jefe);
+        assertEq(
+            detalles,
+            '{"type":"pin", "latlng":[-1, -78], "pinType":"engine"}'
+        );
+    }
+
+    function test_RevertWhen_RegistrarBitacoraTacticaSinRol() public {
+        vm.prank(jefe);
+        trazabilidad.abrirEventoIncendio("0,0", 1);
+
+        vm.prank(operador); // Operador no tiene permiso para bitacora táctica del jefe
+        vm.expectRevert();
+        trazabilidad.registrarBitacoraTactica(1, "Intento fallido");
+    }
+
+    function test_RevertWhen_RegistrarBitacoraTacticaEventoCerrado() public {
+        vm.prank(jefe);
+        trazabilidad.abrirEventoIncendio("0,0", 1);
+
+        vm.prank(jefe);
+        trazabilidad.cerrarIncidente(1);
+
+        vm.prank(jefe);
+        vm.expectRevert("Evento no activo");
+        trazabilidad.registrarBitacoraTactica(1, "Ya cerro");
+    }
 }

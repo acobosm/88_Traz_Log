@@ -307,6 +307,10 @@ p {
   }
 }
 
+.spin-slow {
+  animation: spin 3s linear infinite;
+}
+
 @keyframes slideIn {
   from {
     opacity: 0;
@@ -329,4 +333,105 @@ p {
   background: rgba(255, 255, 255, 0.1);
   border-color: var(--text-secondary);
   transform: translateY(-2px);
+}
+
+/* Panel Táctico */
+.tactical-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
+  background: var(--bg-primary);
+  display: flex;
+}
+
+.tactical-sidebar {
+  width: 320px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  z-index: 10001;
+  box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
+}
+
+.tactical-map-container {
+  flex: 1;
+  position: relative;
+  background: #000;
+  z-index: 10000;
+}
+
+.tool-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.tool-btn {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--text-primary);
+}
+
+.tool-btn:hover {
+  border-color: var(--accent-color);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tool-btn.active {
+  background: var(--accent-glow);
+  border-color: var(--accent-color);
+  box-shadow: 0 0 15px var(--accent-glow);
+}
+
+.tool-btn span {
+  pointer-events: none;
+}
+
+.tool-btn span:first-child {
+  font-size: 1.5rem;
+}
+
+.tool-btn span:last-child {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.sync-status {
+  margin-top: auto;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--glass-border);
+  text-align: center;
+}
+
+.resource-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+.custom-tooltip {
+  background: rgba(0, 0, 0, 0.8) !important;
+  border: 1px solid var(--accent-color) !important;
+  color: white !important;
+  font-weight: bold !important;
+  font-size: 10px !important;
+  text-transform: uppercase;
 }

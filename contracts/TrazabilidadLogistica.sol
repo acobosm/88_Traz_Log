@@ -125,18 +125,36 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
 
     // --- Funciones Fase 1: Inventario y Personal ---
 
+    /**
+     * @dev Registra a un brigadista en el sistema.
+     * Ahora permitido también para la BASE_OPERATIVA_ROLE para agilizar el despliegue.
+     */
     function registrarPersonal(
         address _billetera,
         string memory _nombre,
         string memory _especialidad,
         bytes32 _role
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        // FASE 5: Volver a Admin-only temporalmente
+        /* FASE 5: Lista iterable y acceso Base Operativa
+        require(
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
+                hasRole(BASE_OPERATIVA_ROLE, msg.sender),
+            "No autorizado para registrar personal"
+        );
+        */
+        require(
+            brigadistas[_billetera].billetera == address(0),
+            "Ya registrado"
+        );
+
         brigadistas[_billetera] = Personal({
             billetera: _billetera,
             nombre: _nombre,
             especialidad: _especialidad,
             estaActivo: true
         });
+        // listaPersonal.push(_billetera); // FASE 5
         _setupRole(_role, _billetera);
     }
 
@@ -145,6 +163,14 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
         string calldata descripcion,
         uint256 consumoNominal
     ) public onlyRole(BASE_OPERATIVA_ROLE) whenNotPaused {
+        _registrarInsumo(codigo, descripcion, consumoNominal);
+    }
+
+    function _registrarInsumo(
+        bytes32 codigo,
+        string memory descripcion,
+        uint256 consumoNominal
+    ) internal {
         require(
             inventario[codigo].codigoInventario == bytes32(0),
             "El insumo ya esta registrado"
@@ -152,15 +178,15 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
         inventario[codigo] = Insumo({
             codigoInventario: codigo,
             descripcion: descripcion,
-            basePropietaria: msg.sender,
-            custodioActual: msg.sender,
+            basePropietaria: tx.origin, // Usamos tx.origin para mantener la base original en batches si es necesario
+            custodioActual: tx.origin,
             estado: EstadoInsumo.Disponible,
             estadoReportadoF2: EstadoReportado.Operativo,
             ultimoMantenimiento: block.timestamp,
             consumoNominal: consumoNominal,
             inicioUso: 0
         });
-        emit InsumoRegistrado(codigo, descripcion, msg.sender);
+        emit InsumoRegistrado(codigo, descripcion, tx.origin);
     }
 
     /**
@@ -183,7 +209,7 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
         for (uint256 i = 0; i < codigos.length; i++) {
             // Salto Silencioso (Idempotencia): Solo registramos si NO existe
             if (inventario[codigos[i]].codigoInventario == bytes32(0)) {
-                registrarInsumo(codigos[i], descripciones[i], consumos[i]);
+                _registrarInsumo(codigos[i], descripciones[i], consumos[i]);
             }
             // Si ya existe, simplemente lo ignoramos para no romper el lote
         }
@@ -269,6 +295,31 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
         emit HitoRegistrado(_eventoID, _codigo, _detalles);
     }
 
+    /**
+     * @dev Permite al Jefe de Escena registrar hitos tácticos (pines, zonas, notas) en la bitácora global.
+     * @param _eventoID ID del incidente.
+     * @param _detalles Descripción del hito o coordenadas del pin en formato JSON/Texto.
+     */
+    function registrarBitacoraTactica(
+        uint256 _eventoID,
+        string calldata _detalles
+    ) external onlyRole(JEFE_ESCENA_ROLE) whenNotPaused {
+        require(incendios[_eventoID].activo, "Evento no activo");
+
+        bitacoraEvento[_eventoID].push(
+            LogOperativo({
+                eventoID: _eventoID,
+                codigoInsumo: bytes32(0),
+                operador: msg.sender,
+                timestamp: block.timestamp,
+                detalles: _detalles,
+                esDiscrepancia: false
+            })
+        );
+
+        emit HitoRegistrado(_eventoID, bytes32(0), _detalles);
+    }
+
     function cerrarIncidente(
         uint256 _eventoID
     ) external onlyRole(JEFE_ESCENA_ROLE) {
@@ -319,6 +370,17 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
         insumo.ultimoMantenimiento = block.timestamp;
 
         emit InsumoRetornado(_codigo, _estadoFinal);
+    }
+
+    // --- Funciones de Vista ---
+
+    /**
+     * @dev Retorna la bitácora completa de un evento para su reconstrucción en el mapa.
+     */
+    function obtenerLogEvento(
+        uint256 _eventoID
+    ) external view returns (LogOperativo[] memory) {
+        return bitacoraEvento[_eventoID];
     }
 
     // --- Administración ---

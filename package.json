@@ -5,6 +5,7 @@
     "main": "index.js",
     "scripts": {
         "monitor": "./scripts/monitor.sh",
+        "bootstrap": "./scripts/bootstrap.sh",
         "log": "node scripts/logger.js",
         "test": "forge test"
     },

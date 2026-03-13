@@ -28,15 +28,12 @@ if [ $? != 0 ]; then
   # Pausa generosa para asegurar que todas las terminales estén listas
   sleep 3
 
-  # 3. Asignar Comandos a Paneles Específicos
-  
-  # Panel 0 (Superior Izquierda): Anvil
+  # Panel 0 (Superior Izquierda): Anvil e Inicialización
   tmux send-keys -t "$SESSION:0.0" "./scripts/start_anvil.sh" C-m
   
-  # Panel 1 (Superior Derecha): Consola de Comandos (LIBRE)
-  tmux send-keys -t "$SESSION:0.1" C-m C-u "echo '------------------------------------------------'" C-m
-  tmux send-keys -t "$SESSION:0.1" "echo '  CENTRO DE MANDO: CONSOLA DE COMANDOS LISTA    '" C-m
-  tmux send-keys -t "$SESSION:0.1" "echo '------------------------------------------------'" C-m
+  # Esperar a que Anvil esté arriba y ejecutar Bootstrap Automático
+  # Panel 1 (Superior Derecha): Consola de Comandos (LIBRE tras Bootstrap)
+  tmux send-keys -t "$SESSION:0.1" "sleep 5 && ./scripts/bootstrap.sh" C-m
 
   # Panel 2 (Inferior Izquierda): Frontend (Vite)
   tmux send-keys -t "$SESSION:0.2" "node scripts/logger.js 'Iniciando Frontend...' && cd frontend && npm run dev" C-m
