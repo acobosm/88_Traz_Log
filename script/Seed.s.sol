@@ -24,8 +24,8 @@ contract SeedTrazabilidad is Script {
 
         // 1. Registro de Personal y Roles
         address base = address(0x70997970C51812dc3A010C7d01b50e0d17dc79C8); // Anvil #1
-        address jefe = address(0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65); // Anvil #3 (Aura)
-        address operador = address(0x4e59b44847b379578588920cA78FbF26c0B4956C); // Anvil #7
+        address jefe = address(0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65); // Anvil #4
+        address operador = address(0x14dC79964da2C08b23698B3D3cc7Ca32193d9955); // Anvil #7
 
         (address walletBase, , , bool activoBase) = trazabilidad.brigadistas(
             base
@@ -33,7 +33,7 @@ contract SeedTrazabilidad is Script {
         if (!activoBase) {
             trazabilidad.registrarPersonal(
                 base,
-                "Base Central",
+                unicode"👩💼 (Base 1)",
                 "Logistica",
                 BASE_OPERATIVA_ROLE
             );
@@ -45,12 +45,11 @@ contract SeedTrazabilidad is Script {
         if (!activoJefe) {
             trazabilidad.registrarPersonal(
                 jefe,
-                "Aura (Jefe Escena)",
-                "Incendios",
+                unicode"🔥 (Jefe Escena 2)",
+                "Coordinacion",
                 JEFE_ESCENA_ROLE
             );
         } else {
-            // Aseguramos que tenga el rol aunque ya este registrado como personal
             trazabilidad.grantRole(JEFE_ESCENA_ROLE, jefe);
         }
 
@@ -59,7 +58,7 @@ contract SeedTrazabilidad is Script {
         if (!activoOperador) {
             trazabilidad.registrarPersonal(
                 operador,
-                "Operador Juan",
+                "(Brigadista 1)",
                 "Combate",
                 OPERADOR_ROLE
             );

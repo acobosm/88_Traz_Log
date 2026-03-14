@@ -315,18 +315,27 @@ Se ha iniciado el despliegue del **Centro de Mando Táctico** para el Jefe de Es
 #### Evolución Tecnológica:
 1. **Integración de Leaflet**: Se ha implementado un visor persistente basado en la librería Leaflet que permite la visualización táctica sobre cartografía satelital (Esri).
 2. **Bitácora Táctica Inmutable**: Se ha ampliado el Smart Contract con la función `registrarBitacoraTactica` para guardar marcas de peligro y ubicación de recursos.
-<!-- FASE 5 (Hiden for Phase 4 push)
 3. **Gestión de Identidad (Mapping vs Array)**: Se ha implementado una mejora estructural para permitir la enumeración de brigadistas en el frontend (ver detalle abajo).
--->
 4. **Control de Acceso**: Solo los usuarios con el rol `JEFE_ESCENA_ROLE` pueden interactuar con este panel.
 
 ---
 
-<!-- FASE 5: DETALLE TÉCNICO (Hiden for Phase 4 push)
 ### Detalle Técnico: Mapping vs. Array en Gestión de Personal
-...
+
+#### Contexto y Problemática
+Originalmente, los brigadistas se almacenaban únicamente en un `mapping(address => Personal)`. Debido a que los mappings en Solidity **no son iterables**, el frontend no podía listar a todos los brigadistas registrados.
+
+#### La Solución: Patrón de Almacenamiento Dual
+Se implementó un arreglo global `address[] public listaPersonal` que trabaja en conjunto con el mapping:
+- **Mapping**: Mantiene la eficiencia de gas para consultas directas y seguridad de roles.
+- **Arreglo**: Permite al frontend iterar sobre las direcciones para reconstruir la lista de personal disponible en los menús de selección.
+
+### Verificación de Roles y Permisos (Extensión Fase 2.3)
+Se ha actualizado el acceso a la función `registrarPersonal`:
+- **Cambio**: Ahora permitido para `DEFAULT_ADMIN_ROLE` y `BASE_OPERATIVA_ROLE`.
+- **Razón**: Autonomía de la Base Operativa para el despliegue rápido de personal en el campo.
+
 ---
--->
 
 ---
 

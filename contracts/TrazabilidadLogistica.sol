@@ -82,6 +82,7 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
     mapping(uint256 => EventoIncendio) public incendios;
     mapping(uint256 => LogOperativo[]) public bitacoraEvento;
     mapping(address => bool) public basesAutorizadas;
+    address[] public listaPersonal; // Lista iterable para el frontend
 
     // --- Eventos ---
 
@@ -134,15 +135,12 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
         string memory _nombre,
         string memory _especialidad,
         bytes32 _role
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        // FASE 5: Volver a Admin-only temporalmente
-        /* FASE 5: Lista iterable y acceso Base Operativa
+    ) external whenNotPaused {
         require(
             hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
                 hasRole(BASE_OPERATIVA_ROLE, msg.sender),
             "No autorizado para registrar personal"
         );
-        */
         require(
             brigadistas[_billetera].billetera == address(0),
             "Ya registrado"
@@ -154,7 +152,7 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
             especialidad: _especialidad,
             estaActivo: true
         });
-        // listaPersonal.push(_billetera); // FASE 5
+        listaPersonal.push(_billetera); // FASE 5
         _setupRole(_role, _billetera);
     }
 
@@ -373,6 +371,13 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
     }
 
     // --- Funciones de Vista ---
+
+    /**
+     * @dev Retorna la lista completa de direcciones de personal registrado.
+     */
+    function getListaPersonal() external view returns (address[] memory) {
+        return listaPersonal;
+    }
 
     /**
      * @dev Retorna la bitácora completa de un evento para su reconstrucción en el mapa.
