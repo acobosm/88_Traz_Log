@@ -17,7 +17,7 @@ echo " - Archivo de Estado: $STATE"
 echo " - IP Escucha (Bind): $BIND_IP"
 echo " - IP Conexión (Public): $LOCAL_IP"
 
-echo "Arrancando Anvil..."
-anvil --accounts "$ACCOUNTS" --state "$STATE" --host "$BIND_IP"
+echo "Arrancando Anvil con autoguardado de estado cada 30 segundos..."
+anvil --accounts "$ACCOUNTS" --state "$STATE" --state-interval 30 --host "$BIND_IP"
 
 

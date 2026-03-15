@@ -155,6 +155,7 @@ header {
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.7rem;
   text-decoration: none;
   font-size: 0.95rem;

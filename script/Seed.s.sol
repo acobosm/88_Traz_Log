@@ -33,7 +33,7 @@ contract SeedTrazabilidad is Script {
         if (!activoBase) {
             trazabilidad.registrarPersonal(
                 base,
-                unicode"👩💼 (Base 1)",
+                "(Base 1)",
                 "Logistica",
                 BASE_OPERATIVA_ROLE
             );
@@ -45,7 +45,7 @@ contract SeedTrazabilidad is Script {
         if (!activoJefe) {
             trazabilidad.registrarPersonal(
                 jefe,
-                unicode"🔥 (Jefe Escena 2)",
+                "Aura Frasier",
                 "Coordinacion",
                 JEFE_ESCENA_ROLE
             );
@@ -58,7 +58,7 @@ contract SeedTrazabilidad is Script {
         if (!activoOperador) {
             trazabilidad.registrarPersonal(
                 operador,
-                "(Brigadista 1)",
+                "Sung Jin-woo",
                 "Combate",
                 OPERADOR_ROLE
             );

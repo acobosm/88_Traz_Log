@@ -1,5 +1,4 @@
 # Project Checklist: 88_Trazabilidad_Logistica
-
 - [x] Fase 1: Configuración, Persistencia y Conectividad
     - [x] Configurar Anvil con 20 cuentas y `--state blockchain_state.json`
     - [x] Establecer variable de IP local configurable
@@ -9,7 +8,7 @@
     - [x] Implementar `TrazabilidadLogistica.sol` (Roles, Registro)
     - [x] Desplegar contrato e inventario inicial
     - [x] **Subir a repositorios**
-- [/] Fase 3: Gestión de Incidentes - Pruebas e Integridad
+- [x] Fase 3: Gestión de Incidentes - Pruebas e Integridad
     - [x] Configurar entorno Foundry (`foundry.toml`, `lib/openzeppelin`)
     - [x] Crear suite de pruebas exhaustiva (Cobertura >80%)
         - [x] Flujos principales (Consumo, Discrepancias)
@@ -24,22 +23,27 @@
         - [x] Probar robustez (Salto de duplicados)
         - [x] Generar plantilla .csv para bases operativas
     - [x] **Subir a repositorios**
-- [/] Fase 4: Interfaz Web3 y Monitoreo (tmux)
-    - [/] Crear script `monitor.sh` con layout dinámico de tmux
-    - [ ] Implementar sistema de logs operativos (`logs/operaciones.log`)
-    - [ ] Desarrollar UI base para carga de datos y coordenadas
-    - [ ] Implementar botón de descarga de plantilla CSV
-    - [ ] Configurar visualización de logs de Anvil y Frontend en tmux
+- [x] Fase 4: Interfaz Web3 y Monitoreo (tmux)
+    - [x] Crear script `monitor.sh` con layout dinámico de tmux
+    - [x] Implementar sistema de logs operativos (`logs/operaciones.log`)
+    - [x] Desarrollar UI base para carga de datos y coordenadas
+    - [x] Implementar botón de descarga de plantilla CSV
+    - [x] Configurar visualización de logs de Anvil y Frontend en tmux
+    - [x] **Subir a repositorios**
+- [/] Fase 5: Panel de Control FireOps y Trazabilidad
+    - [x] Integrar botón "Panel de Control" en interfaz Web3
+    - [x] Adaptar FireOps para lectura de hitos y escritura de pines
+    - [x] **Trazabilidad de Activos**: Implementar historial basado en logs blockchain.
+    - [x] **Identificación por Nombres**: Resolución de direcciones a personal registrado.
+    - [x] **Exportación PDF**: Generación de reportes de incidente e historial de activos.
+    - [ ] **Subir a repositorios (Pre-Multirol)**
+- [ ] Fase 6: Ecosistema Multirol y Gestión Administrativa
+    - [ ] **Dashboard de Brigadistas**: Interfaz móvil para reporte de hitos y GPS.
+    - [ ] **Dashboard de Administración**: Panel global para creación y gestión de Bases Operativas.
+    - [ ] **UX/UI Adapativa**: Optimización para dispositivos móviles en campo.
     - [ ] **Subir a repositorios**
-- [ ] Fase 5: Panel de Control FireOps
-    - [ ] Integrar botón "Panel de Control" en interfaz Web3
-    - [ ] Adaptar FireOps para lectura de hitos y escritura de pines
-    - [ ] **Subir a repositorios**
-- [ ] Fase 6: Auditoría y Cierre
-    - [ ] Implementar retorno de activos y discrepancias
-    - [ ] Pruebas de extremo a extremo
-    - [ ] **Subir a repositorios**
-- [ ] Fase 7: Cierre y Documentación Final
-    - [ ] Consolidar informe de evidencias
+- [ ] Fase 7: Auditoría Final, Retornos y Cierre
+    - [ ] Implementar interfaz de retorno de activos con alertas de discrepancia.
+    - [ ] Pruebas de extremo a extremo (Simulación Multi-Base).
+    - [x] Consolidar informe de evidencias (Actualizado a Fase 5)
     - [ ] Revisión final y **subida definitiva**
-

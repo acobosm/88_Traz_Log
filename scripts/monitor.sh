@@ -31,9 +31,9 @@ if [ $? != 0 ]; then
   # Panel 0 (Superior Izquierda): Anvil e Inicialización
   tmux send-keys -t "$SESSION:0.0" "./scripts/start_anvil.sh" C-m
   
-  # Esperar a que Anvil esté arriba y ejecutar Bootstrap Automático
-  # Panel 1 (Superior Derecha): Consola de Comandos (LIBRE tras Bootstrap)
-  tmux send-keys -t "$SESSION:0.1" "sleep 5 && ./scripts/bootstrap.sh" C-m
+  # Esperar a que Anvil esté arriba y ejecutar Bootstrap Automático SOLO si el entorno es nuevo
+  # Panel 1 (Superior Derecha): Consola de Comandos
+  tmux send-keys -t "$SESSION:0.1" "sleep 5 && if [ -f blockchain_state.json ]; then echo -e '\n✨ Estado persistente detectado. Saltando reinicio de contrato.\n👉 Usa ./scripts/bootstrap.sh manualmente si deseas borrar todo y empezar de cero.\n👉 O usa ./scripts/purge.sh para limpieza total.'; else ./scripts/bootstrap.sh; fi" C-m
 
   # Panel 2 (Inferior Izquierda): Frontend (Vite)
   tmux send-keys -t "$SESSION:0.2" "node scripts/logger.js 'Iniciando Frontend...' && cd frontend && npm run dev" C-m

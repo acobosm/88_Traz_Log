@@ -10,7 +10,7 @@ L.Icon.Default.mergeOptions({
     shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.3.1/images/marker-shadow.png',
 });
 
-const TacticalPanel = ({ eventoId, coordenadas, contract, onBack }) => {
+const TacticalPanel = ({ eventoId, coordenadas, contract, onBack, onGenerateReport, inventory, personnel }) => {
     const mapRef = useRef(null);
     const mapInstance = useRef(null);
     const [status, setStatus] = useState('LISTO');
@@ -23,6 +23,18 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack }) => {
     const [isActivo, setIsActivo] = useState(true);
     const [showV360, setShowV360] = useState(false);
     const [selectedHito, setSelectedHito] = useState(null);
+    const [pinModal, setPinModal] = useState({ show: false, latlng: null, tool: null, options: [] });
+    const [selectedPinOption, setSelectedPinOption] = useState('');
+    const markerInstances = useRef({}); // Para el toggle de visibilidad
+    const [isCollapsed, setIsCollapsed] = useState(false);
+
+    const markersRef = useRef(markers);
+    const inventoryRef = useRef(inventory);
+    const personnelRef = useRef(personnel);
+
+    useEffect(() => { markersRef.current = markers; }, [markers]);
+    useEffect(() => { inventoryRef.current = inventory; }, [inventory]);
+    useEffect(() => { personnelRef.current = personnel; }, [personnel]);
 
     // Sincronizar ref con estado para el listener de Leaflet
     useEffect(() => {
@@ -61,7 +73,7 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack }) => {
                 .bindTooltip("P0", { permanent: true, direction: 'top', className: 'custom-tooltip-origin' });
 
             // Agregar a la lista de markers (Radar)
-            setMarkers([{ label: 'ORIGEN (Punto Cero)', latlng: { lat, lng: lon }, type: 'origin' }]);
+            setMarkers([{ label: 'ORIGEN (Punto Cero)', latlng: { lat, lng: lon }, type: 'origin', visible: true }]);
 
             // Forzar recalculo de tamaño
             setTimeout(() => {
@@ -74,18 +86,53 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack }) => {
             // Manejador de clics para colocar pines
             mapInstance.current.on('click', (e) => {
                 if (toolRef.current) {
-                    const toolNames = {
-                        'engine': 'MOTOBOMBA',
-                        'crew': 'BRIGADA',
-                        'water': 'PUNTO AGUA',
-                        'hazard': 'PELIGRO'
-                    };
-                    const friendlyName = toolNames[toolRef.current] || toolRef.current;
-                    const label = prompt(`Indique etiqueta para ${friendlyName}:`, friendlyName);
-                    if (label) {
-                        addMapMarker(e.latlng, toolRef.current, label, true);
-                        setActiveTool(null);
-                        setStatus('LISTO');
+                    if (toolRef.current === 'engine') {
+                        const assigned = personnelRef.current?.filter(p => p.incidente === `ID-INC${eventoId.padStart(3, '0')}`) || [];
+                        const motobombas = [];
+                        assigned.forEach(p => {
+                            const pItems = inventoryRef.current?.filter(item => item.custodio?.toLowerCase() === p.address?.toLowerCase() && item.estado === 1 && item.descripcion.toLowerCase().includes('motobomba')) || [];
+                            pItems.forEach(item => {
+                                // Short label formatting for the map pin
+                                const names = p.name.trim().split(' ');
+                                const shortName = names.length > 1 ? `${names[0].charAt(0)}. ${names[names.length - 1]}` : names[0];
+                                const cleanLabel = `MTB-${shortName}`;
+                                const isPinned = markersRef.current.some(m => m.type === 'engine' && m.label === cleanLabel);
+                                if (!isPinned) motobombas.push({ label: cleanLabel, fullName: `${item.descripcion} (${p.name})` });
+                            });
+                        });
+                        if (motobombas.length > 0) {
+                            setPinModal({ show: true, latlng: e.latlng, tool: 'engine', options: motobombas });
+                        }
+                    } else if (toolRef.current === 'crew') {
+                        const assigned = personnelRef.current?.filter(p => p.incidente === `ID-INC${eventoId.padStart(3, '0')}`) || [];
+                        const brigadas = [];
+                        assigned.forEach(p => {
+                            const pItems = inventoryRef.current?.filter(item => item.custodio?.toLowerCase() === p.address?.toLowerCase() && item.estado === 1) || [];
+                            if (pItems.length > 0) {
+                                const hasMotobomba = pItems.some(item => item.descripcion.toLowerCase().includes('motobomba'));
+                                if (!hasMotobomba) {
+                                    // Short label formatting for the map pin
+                                    const names = p.name.trim().split(' ');
+                                    const shortName = names.length > 1 ? `${names[0].charAt(0)}. ${names[names.length - 1]}` : names[0];
+                                    const cleanLabel = `BRG-${shortName}`;
+                                    const isPinned = markersRef.current.some(m => m.type === 'crew' && m.label === cleanLabel);
+                                    if (!isPinned) brigadas.push({ label: cleanLabel, fullName: `Brigadista: ${p.name} (${pItems.length} recursos)` });
+                                }
+                            }
+                        });
+                        if (brigadas.length > 0) {
+                            setPinModal({ show: true, latlng: e.latlng, tool: 'crew', options: brigadas });
+                        }
+                    } else {
+                        const toolNames = { 'water': 'PUNTO AGUA', 'hazard': 'PELIGRO' };
+                        const friendlyName = toolNames[toolRef.current];
+                        const labelInput = prompt(`Indique etiqueta para ${friendlyName}:`, friendlyName);
+                        if (labelInput) {
+                            const label = labelInput.trim();
+                            addMapMarker(e.latlng, toolRef.current, label, true);
+                            setActiveTool(null);
+                            setStatus('LISTO');
+                        }
                     }
                 }
             });
@@ -103,6 +150,15 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack }) => {
             }
         };
     }, []);
+
+    // Recalcular el tamaño del mapa de Leaflet cuando el panel se colapsa/expande
+    useEffect(() => {
+        if (mapInstance.current) {
+            setTimeout(() => {
+                mapInstance.current.invalidateSize();
+            }, 300);
+        }
+    }, [isCollapsed]);
 
     const checkIncidentStatus = async () => {
         if (!contract) return;
@@ -139,14 +195,24 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack }) => {
             const newMarkers = [];
             const newMilestones = [];
 
+            // Limpiamos las referencias de mapa viejas antes de repintar
+            markerInstances.current = {};
+
             logs.forEach(log => {
                 // Hitos Tácticos (Pines)
                 if (log.codigoInsumo === "0x0000000000000000000000000000000000000000000000000000000000000000") {
                     try {
                         const data = JSON.parse(log.detalles);
                         if (data.type === 'pin') {
-                            addMapMarker(data.latlng, data.pinType, data.label, false);
-                            newMarkers.push({ label: data.label, latlng: data.latlng, type: data.pinType });
+                            const label = (data.label || "").trim();
+                            addMapMarker(data.latlng, data.pinType, label, false);
+                            newMarkers.push({ 
+                                label: label, 
+                                fullLabel: (data.fullLabel || label).trim(),
+                                latlng: data.latlng, 
+                                type: data.pinType, 
+                                visible: true 
+                            });
                         } else {
                             // Otros hitos de bitácora
                             newMilestones.push({
@@ -167,7 +233,7 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack }) => {
                     // Hitos vinculados a insumos (Fase 2)
                     newMilestones.push({
                         timestamp: Number(log.timestamp),
-                        detalles: `Insumo ${log.codigoInsumo.substring(0, 6)}...: ${log.detalles}`,
+                        detalles: `${log.detalles} | Insumo ${log.codigoInsumo.substring(0, 6)}...`,
                         operador: log.operador
                     });
                 }
@@ -180,7 +246,7 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack }) => {
         }
     };
 
-    const addMapMarker = (latlng, type, label, saveToBlockchain) => {
+    const addMapMarker = (latlng, type, label, saveToBlockchain, fullLabel = null) => {
         if (!mapInstance.current) return;
 
         let color = '#dc2626';
@@ -204,18 +270,57 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack }) => {
 
         const marker = L.marker(latlng, { icon }).addTo(mapInstance.current);
         marker.bindTooltip(label, { permanent: true, direction: 'bottom', className: 'custom-tooltip' });
+        const tooltip = marker.getTooltip();
+        
+        // Guardar referencia para manipular visibilidad más tarde
+        // Usamos una clave compuesta robusta con precisión fija: tipo + label + coords
+        const latKey = Number(latlng.lat).toFixed(8);
+        const lngKey = Number(latlng.lng).toFixed(8);
+        const instanceKey = `${type}_${label}_${latKey}_${lngKey}`;
+        markerInstances.current[instanceKey] = { marker, tooltip };
 
         if (saveToBlockchain) {
-            savePin(latlng, type, label);
-            setMarkers(prev => [...prev, { label, latlng, type }]);
+            savePin(latlng, type, label, fullLabel || label);
+            setMarkers(prev => [...prev, { label, fullLabel: fullLabel || label, latlng, type, visible: true }]);
         }
     };
 
-    const savePin = async (latlng, pinType, label) => {
+    const toggleVisibility = (index, markerData) => {
+        const { label, type, latlng } = markerData;
+        setMarkers(prev => {
+            const next = [...prev];
+            const isVisible = !next[index].visible;
+            
+            // Actualización INMUTABLE: Clonamos el objeto de marker para que React detecte el cambio
+            next[index] = { ...next[index], visible: isVisible };
+            
+            // Actualizar el mapa usando la clave normalizada (8 decimales)
+            const latKey = Number(latlng.lat).toFixed(8);
+            const lngKey = Number(latlng.lng).toFixed(8);
+            const instanceKey = `${type}_${label}_${latKey}_${lngKey}`;
+            
+            const instance = markerInstances.current[instanceKey]?.marker;
+            const tooltip = markerInstances.current[instanceKey]?.tooltip;
+            
+            if (instance) {
+                // Opacidad: 1 para visible, 0.3 para "fantasma" (oculto) como se solicitó
+                instance.setOpacity(isVisible ? 1 : 0.3);
+                if (tooltip) {
+                    // El tooltip se oculta al 0% para no saturar si hay muchos pines fantasma
+                    tooltip.setOpacity(isVisible ? 1 : 0);
+                }
+            } else {
+                console.warn("No se encontró instancia para la clave:", instanceKey);
+            }
+            return next;
+        });
+    };
+
+    const savePin = async (latlng, pinType, label, fullLabel) => {
         setLoading(true);
         setStatus('SINCRONIZANDO...');
         try {
-            const data = JSON.stringify({ type: 'pin', latlng, pinType, label });
+            const data = JSON.stringify({ type: 'pin', latlng, pinType, label, fullLabel });
             const tx = await contract.registrarBitacoraTactica(BigInt(eventoId), data);
             await tx.wait();
             setStatus('SINCRO EXITOSA');
@@ -228,16 +333,111 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack }) => {
         }
     };
 
+    const handleToolClick = (tool) => {
+        if (!isActivo) return;
+        if (tool === 'engine') {
+            const assigned = personnel?.filter(p => p.incidente === `ID-INC${eventoId.padStart(3, '0')}`) || [];
+            let count = 0;
+            assigned.forEach(p => {
+                const pItems = inventory?.filter(item => item.custodio?.toLowerCase() === p.address?.toLowerCase() && item.estado === 1 && item.descripcion.toLowerCase().includes('motobomba')) || [];
+                pItems.forEach(item => {
+                    const names = p.name.trim().split(' ');
+                    const shortName = names.length > 1 ? `${names[0].charAt(0)}. ${names[names.length - 1]}` : names[0];
+                    const cleanLabel = `MTB-${shortName}`;
+                    const isPinned = markers.some(m => m.type === 'engine' && m.label === cleanLabel);
+                    if (!isPinned) count++;
+                });
+            });
+            if (count === 0) {
+                alert("⚠️ Operación denegada: No hay motobombas disponibles o todas ya están desplegadas en el mapa. Asigne más recursos desde el Panel de Control.");
+                return;
+            }
+        } else if (tool === 'crew') {
+            const assigned = personnel?.filter(p => p.incidente === `ID-INC${eventoId.padStart(3, '0')}`) || [];
+            let count = 0;
+            assigned.forEach(p => {
+                const pItems = inventory?.filter(item => item.custodio?.toLowerCase() === p.address?.toLowerCase() && item.estado === 1) || [];
+                if (pItems.length > 0) {
+                    const hasMotobomba = pItems.some(item => item.descripcion.toLowerCase().includes('motobomba'));
+                    if (!hasMotobomba) {
+                        const names = p.name.trim().split(' ');
+                        const shortName = names.length > 1 ? `${names[0].charAt(0)}. ${names[names.length - 1]}` : names[0];
+                        const cleanLabel = `BRG-${shortName}`;
+                        const isPinned = markers.some(m => m.type === 'crew' && m.label === cleanLabel);
+                        if (!isPinned) count++;
+                    }
+                }
+            });
+            if (count === 0) {
+                alert("⚠️ Operación denegada: No hay brigadistas equipados disponibles o todos ya están en el campo. Equipe al personal desde el Panel de Control.");
+                return;
+            }
+        }
+        setActiveTool(tool);
+    };
+
     return (
         <div className="tactical-overlay">
-            <div className="tactical-sidebar" style={{ width: '400px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.8rem', height: '100vh' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #333', paddingBottom: '0.4rem', flexShrink: 0, gap: '0.5rem' }}>
-                    <h2 style={{ fontSize: '0.8rem', color: 'var(--accent-color)', margin: 0, whiteSpace: 'nowrap' }}>OP: ID-INC{eventoId.padStart(3, '0')}</h2>
-                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+            <button 
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                className="btn-secondary"
+                style={{
+                    position: 'absolute',
+                    left: '1.5rem',
+                    top: '1.5rem',
+                    zIndex: 20000,
+                    width: '40px',
+                    height: '40px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: '1px solid var(--accent-color)',
+                    color: 'var(--accent-color)',
+                    background: 'var(--bg-secondary)',
+                    fontWeight: 'bold',
+                    borderRadius: '4px',
+                    boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
+                    padding: 0
+                }}
+                title={isCollapsed ? "Expandir Panel" : "Colapsar Panel"}
+            >
+                {isCollapsed ? '>>' : '<<'}
+            </button>
+
+            <div className="tactical-sidebar" style={{ 
+                width: isCollapsed ? '0px' : '420px', 
+                padding: isCollapsed ? '0' : '1.5rem', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: '0.8rem', 
+                height: '100vh',
+                overflow: 'hidden',
+                transition: 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)',
+                flexShrink: 0,
+                borderRight: isCollapsed ? 'none' : '1px solid var(--glass-border)',
+                position: 'relative'
+            }}>
+                {/* Cabecera Sidebar (Con spacer para el botón absoluto) */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', borderBottom: '1px solid #333', paddingBottom: '0.8rem', flexShrink: 0, minWidth: '350px' }}>
+                    
+                    <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', paddingLeft: '3.5rem', minHeight: '40px' }}>
+                        <h2 style={{ fontSize: '1rem', color: 'var(--accent-color)', margin: 0, whiteSpace: 'nowrap', fontWeight: 'bold', letterSpacing: '1px', marginRight: '1rem' }}>
+                            OP: ID-INC{eventoId.padStart(3, '0')}
+                        </h2>
+                        <span style={{ fontSize: '0.75rem', color: '#aaa', fontFamily: 'var(--font-mono)' }}>
+                            {coordenadas}
+                        </span>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
                         {isActivo && (
-                            <button onClick={cerrarIncidente} className="btn-secondary" style={{ padding: '0.2rem 0.5rem', fontSize: '0.65rem', border: '1px solid #ff4444', color: '#ff4444' }}>🔒 CERRAR</button>
+                            <button onClick={cerrarIncidente} className="btn-secondary" style={{ padding: '0.6rem 0.5rem', fontSize: '0.8rem', border: '1px solid #ff4444', color: '#ff4444', flex: 1, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
+                                🔒 CERRAR INCIDENTE
+                            </button>
                         )}
-                        <button onClick={onBack} className="btn-secondary" style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}>← VOLVER</button>
+                        <button onClick={onBack} className="btn-secondary" style={{ padding: '0.6rem 0.5rem', fontSize: '0.8rem', flex: isActivo ? 0 : 1, minWidth: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
+                            ← VOLVER
+                        </button>
                     </div>
                 </div>
 
@@ -245,10 +445,10 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack }) => {
                 <div className="card-mini" style={{ border: '2px solid #ff444455', padding: '0.8rem', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                     <h3 style={{ fontSize: '0.7rem', color: '#ff4444', marginBottom: '0.8rem', flexShrink: 0 }}>🔴 RECURSOS DE CAMPO</h3>
                     <div className="tool-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', overflowY: 'auto', opacity: isActivo ? 1 : 0.4, pointerEvents: isActivo ? 'auto' : 'none' }}>
-                        <button className={`tool-btn ${activeTool === 'engine' ? 'active' : ''}`} onClick={() => setActiveTool('engine')}>🚒 MOTOBOMBA</button>
-                        <button className={`tool-btn ${activeTool === 'crew' ? 'active' : ''}`} onClick={() => setActiveTool('crew')}>👨‍🚒 BRIGADA</button>
-                        <button className={`tool-btn ${activeTool === 'water' ? 'active' : ''}`} onClick={() => setActiveTool('water')}>💧 PUNTO AGUA</button>
-                        <button className={`tool-btn ${activeTool === 'hazard' ? 'active' : ''}`} onClick={() => setActiveTool('hazard')}>⚠️ PELIGRO</button>
+                        <button className={`tool-btn ${activeTool === 'engine' ? 'active' : ''}`} onClick={() => handleToolClick('engine')}>🚒 MOTOBOMBA</button>
+                        <button className={`tool-btn ${activeTool === 'crew' ? 'active' : ''}`} onClick={() => handleToolClick('crew')}>👨‍🚒 BRIGADA</button>
+                        <button className={`tool-btn ${activeTool === 'water' ? 'active' : ''}`} onClick={() => handleToolClick('water')}>💧 PUNTO AGUA</button>
+                        <button className={`tool-btn ${activeTool === 'hazard' ? 'active' : ''}`} onClick={() => handleToolClick('hazard')}>⚠️ PELIGRO</button>
                         <button className="tool-btn disabled" disabled title="Próximamente">🚁 HELI (PRO)</button>
                         <button className="tool-btn disabled" disabled title="Próximamente">🛩️ CISTERNA (PRO)</button>
                     </div>
@@ -268,11 +468,24 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack }) => {
                             else if (m.type === 'crew') itemColor = '#16a34a'; // Green
 
                             return (
-                                <div key={i} style={{ fontSize: '0.7rem', background: 'rgba(0,0,0,0.3)', padding: '0.4rem', borderRadius: '4px', borderLeft: `3px solid ${itemColor}` }}>
-                                    <div style={{ fontWeight: 'bold', color: itemColor }}>{m.label}</div>
-                                    <code style={{ color: '#aaa', fontSize: '0.65rem' }}>
-                                        LAT: {m.latlng.lat.toFixed(6)} | LON: {m.latlng.lng.toFixed(6)}
-                                    </code>
+                                <div key={i} style={{ fontSize: '0.7rem', background: 'rgba(0,0,0,0.3)', padding: '0.4rem', borderRadius: '4px', borderLeft: `3px solid ${itemColor}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: m.visible ? 1 : 0.4 }}>
+                                    <div style={{ flex: 1, paddingRight: '0.5rem' }}>
+                                        <div style={{ fontWeight: 'bold', color: itemColor, textDecoration: m.visible ? 'none' : 'line-through' }}>
+                                            {m.fullLabel || m.label}
+                                        </div>
+                                        <code style={{ color: '#aaa', fontSize: '0.65rem' }}>
+                                            LAT: {m.latlng.lat.toFixed(6)} | LON: {m.latlng.lng.toFixed(6)}
+                                        </code>
+                                    </div>
+                                    {m.type !== 'origin' && (
+                                        <button 
+                                            onClick={() => toggleVisibility(i, m)} 
+                                            style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', padding: '0.2rem' }}
+                                            title={m.visible ? "Ocultar del mapa" : "Mostrar en mapa"}
+                                        >
+                                            <i className={`fa-solid fa-eye${m.visible ? '' : '-slash'}`}></i>
+                                        </button>
+                                    )}
                                 </div>
                             );
                         })}
@@ -283,8 +496,8 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack }) => {
                 <div className="card-mini" style={{ border: '2px solid #4444ff55', padding: '0.8rem', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem', flexShrink: 0 }}>
                         <h3 style={{ fontSize: '0.7rem', color: '#4444ff', margin: 0 }}>🔵 BITÁCORA DE COMBATE</h3>
-                        <button onClick={() => setShowV360(true)} style={{ background: 'rgba(255,165,0,0.1)', border: '1px solid var(--accent-color)', color: '#fff', fontSize: '0.65rem', padding: '0.4rem 0.6rem', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', width: '100%', marginTop: '0.5rem' }}>
-                            📋 RESUMEN DEL EVENTO
+                        <button onClick={() => setShowV360(true)} style={{ background: 'rgba(255,165,0,0.1)', border: '1px solid var(--accent-color)', color: '#fff', fontSize: '0.65rem', padding: '0.4rem 0.6rem', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+                            📋 RESUMEN EVENTO
                         </button>
                     </div>
                     <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -295,7 +508,7 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack }) => {
                                 <div key={i} style={{ fontSize: '0.65rem', borderBottom: '1px solid #222', paddingBottom: '0.3rem', position: 'relative' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                         <span style={{ color: 'var(--accent-color)' }}>[{new Date(ms.timestamp * 1000).toLocaleTimeString()}]</span>
-                                        <button onClick={() => setSelectedHito(ms)} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '0.7rem' }}>🔍</button>
+                                        <button onClick={() => setSelectedHito(ms)} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '0.9rem' }}>🔍</button>
                                     </div>
                                     <div style={{ color: '#fff', paddingRight: '1rem' }}>{ms.detalles.length > 50 ? ms.detalles.substring(0, 50) + '...' : ms.detalles}</div>
                                     <div style={{ color: '#666', fontSize: '0.6rem' }}>Op: {ms.operador.substring(0, 8)}...</div>
@@ -375,7 +588,7 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack }) => {
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.5rem' }}>
                                     {markers.filter(m => m.type !== 'origin').map((m, i) => (
                                         <div key={i} style={{ fontSize: '0.75rem', background: 'rgba(255,165,0,0.05)', padding: '0.6rem 0.8rem', borderRadius: '6px', border: '1px solid rgba(255,165,0,0.1)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                            <div style={{ fontWeight: 'bold', color: '#eee' }}>📍 {m.label} <span style={{ color: 'var(--accent-color)', fontSize: '0.6rem' }}>({m.type.toUpperCase()})</span></div>
+                                            <div style={{ fontWeight: 'bold', color: '#eee' }}>📍 {m.fullLabel || m.label} <span style={{ color: 'var(--accent-color)', fontSize: '0.6rem' }}>({m.type.toUpperCase()})</span></div>
                                             <div style={{ fontSize: '0.6rem', color: '#666', fontFamily: 'monospace' }}>{m.latlng ? `${m.latlng.lat.toFixed(4)}, ${m.latlng.lng.toFixed(4)}` : 'N/A'}</div>
                                         </div>
                                     ))}
@@ -392,7 +605,7 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack }) => {
                                             const parsed = JSON.parse(ms.detalles);
                                             if (parsed.type === 'pin') {
                                                 const pinCoords = parsed.latlng ? `[${parsed.latlng.lat.toFixed(4)}, ${parsed.latlng.lng.toFixed(4)}]` : '';
-                                                hitoText = `📍 ${parsed.label} (${parsed.pinType.toUpperCase()}) ${pinCoords}`;
+                                                hitoText = `📍 ${parsed.fullLabel || parsed.label} (${parsed.pinType.toUpperCase()}) ${pinCoords}`;
                                             } else if (parsed.text) {
                                                 hitoText = parsed.text;
                                             }
@@ -412,9 +625,63 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack }) => {
                             </div>
                         </div>
 
-                        <div style={{ padding: '1.5rem', borderTop: '1px solid #333', textAlign: 'center' }}>
-                            <button onClick={() => setShowV360(false)} className="btn btn-secondary" style={{ width: '50%', fontSize: '0.85rem', fontWeight: 'bold', letterSpacing: '1px' }}>
+                        <div style={{ padding: '1.5rem', borderTop: '1px solid #333', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                            <button onClick={() => setShowV360(false)} className="btn btn-secondary" style={{ width: '100%', fontSize: '0.85rem', fontWeight: 'bold', letterSpacing: '1px' }}>
                                 CERRAR
+                            </button>
+                            {onGenerateReport && (
+                                <button onClick={() => onGenerateReport(milestones)} className="btn" style={{ width: '100%', fontSize: '0.85rem', fontWeight: 'bold', letterSpacing: '1px', background: 'var(--accent-color)', color: '#000' }}>
+                                    📄 RESUMEN DEL EVENTO
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal para Pines con Selección */}
+            {pinModal.show && (
+                <div className="v360-modal-overlay">
+                    <div className="v360-modal-content card" style={{ padding: '2rem', maxWidth: '400px', textAlign: 'center' }}>
+                        <h3 style={{ color: 'var(--accent-color)' }}>DESPLIEGUE TÁCTICO</h3>
+                        <p style={{ fontSize: '0.8rem', color: '#ccc', marginBottom: '1.5rem' }}>Seleccione qué recurso va a ubicar en el mapa.</p>
+                        
+                        <select 
+                            value={selectedPinOption} 
+                            onChange={(e) => setSelectedPinOption(e.target.value)} 
+                            style={{ width: '100%', padding: '0.8rem', marginBottom: '1.5rem', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }}
+                        >
+                            <option value="">-- Elija un elemento --</option>
+                            {pinModal.options.map((opt, i) => (
+                                <option key={i} value={opt.label}>{opt.fullName || opt.label}</option>
+                            ))}
+                        </select>
+
+                        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                            <button 
+                                className="btn" 
+                                disabled={!selectedPinOption}
+                                onClick={() => {
+                                    if (selectedPinOption) {
+                                        const selected = pinModal.options.find(o => o.label === selectedPinOption);
+                                        addMapMarker(pinModal.latlng, pinModal.tool, selected.label, true, selected.fullName);
+                                        setPinModal({ show: false, latlng: null, tool: null, options: [] });
+                                        setSelectedPinOption('');
+                                        setActiveTool(null);
+                                        setStatus('LISTO');
+                                    }
+                                }}
+                            >
+                                CONFIRMAR
+                            </button>
+                            <button 
+                                className="btn btn-secondary" 
+                                onClick={() => {
+                                    setPinModal({ show: false, latlng: null, tool: null, options: [] });
+                                    setSelectedPinOption('');
+                                }}
+                            >
+                                CANCELAR
                             </button>
                         </div>
                     </div>

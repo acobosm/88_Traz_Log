@@ -20,6 +20,12 @@ const formatTime = (ts) => {
   return `📅 ${day}/${month}/${d.getUTCFullYear()} ${hours}:${minutes}`;
 }
 
+const stripEmojis = (str) => {
+  if (!str) return "";
+  // Remove common emojis and non-standard characters that break PDF rendering
+  return str.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
+}
+
 const KNOWN_SERIALS = [
   "ID-HZ001", "ID-MA001", "ID-PL001", "ID-MC001",
   "ID-BF001", "ID-BF002", "ID-BF003", "ID-BF004", "ID-BF005",
@@ -54,10 +60,23 @@ function App() {
   const [newPerson, setNewPerson] = useState({ address: '', name: '', specialty: '', role: 2 })
   const [personnelFilter, setPersonnelFilter] = useState('all')
   const [assignmentSearchTerm, setAssignmentSearchTerm] = useState('')
+  const [inventoryFilter, setInventoryFilter] = useState('all')
   const [showV360Modal, setShowV360Modal] = useState(false)
   const [selectedV360Incident, setSelectedV360Incident] = useState(null)
   const [v360Logs, setV360Logs] = useState([])
+  const [expandedPersonnel, setExpandedPersonnel] = useState(new Set())
+  const [showHistoryModal, setShowHistoryModal] = useState(false)
+  const [historyData, setHistoryData] = useState({ item: null, logs: [] })
   const fileInputRef = useRef(null)
+
+  const togglePersonExpansion = (address) => {
+    setExpandedPersonnel(prev => {
+      const next = new Set(prev)
+      if (next.has(address)) next.delete(address)
+      else next.add(address)
+      return next
+    })
+  }
 
   // Autolimpiar filtro y selecciones al abrir el modal de asignación
   useEffect(() => {
@@ -106,11 +125,128 @@ function App() {
     fetchV360Logs()
   }, [showV360Modal, selectedV360Incident, contractInstance])
 
-  const generarReportePDF = () => {
-    if (!selectedV360Incident) return;
+  const fetchAssetHistory = async (item) => {
+    if (!contractInstance) return;
+    setLoading(true);
+    setStatus({ type: 'info', message: `Consultando historial de ${item.serialId}...` });
+    try {
+      // Consultamos los eventos filtrados por el código del insumo (bytes32)
+      const filterAsignado = contractInstance.filters.InsumoAsignado(null, item.hash);
+      const filterHito = contractInstance.filters.HitoRegistrado(null, item.hash);
+      const filterRetornado = contractInstance.filters.InsumoRetornado(item.hash);
+
+      const [logsAsignado, logsHito, logsRetornado] = await Promise.all([
+        contractInstance.queryFilter(filterAsignado),
+        contractInstance.queryFilter(filterHito),
+        contractInstance.queryFilter(filterRetornado)
+      ]);
+
+      const history = [];
+
+      logsAsignado.forEach(log => {
+        history.push({
+          type: 'asignacion',
+          timestamp: 0,
+          blockNumber: log.blockNumber,
+          txHash: log.transactionHash,
+          details: `Asignado al Incidente ID-INC${log.args[0].toString().padStart(3, '0')}`,
+          operador: log.args[2]
+        });
+      });
+
+      logsHito.forEach(log => {
+        history.push({
+          type: 'hito',
+          timestamp: 0,
+          blockNumber: log.blockNumber,
+          txHash: log.transactionHash,
+          details: log.args[2],
+          operador: '---'
+        });
+      });
+
+      logsRetornado.forEach(log => {
+        history.push({
+          type: 'retorno',
+          timestamp: 0,
+          blockNumber: log.blockNumber,
+          txHash: log.transactionHash,
+          details: `Retornado a Base Operativa (Estado: ${log.args[1] === 0 ? 'Disponible' : 'Taller/Perdido'})`,
+          operador: 'BASE'
+        });
+      });
+
+      // Obtener timestamps de los bloques para una línea de tiempo real
+      const detailedHistory = await Promise.all(history.map(async (h) => {
+        try {
+          const block = await contractInstance.runner.provider.getBlock(h.blockNumber);
+          return { ...h, timestamp: block.timestamp };
+        } catch (e) {
+          return { ...h, timestamp: Math.floor(Date.now() / 1000) };
+        }
+      }));
+
+      setHistoryData({ item, logs: detailedHistory.sort((a, b) => b.timestamp - a.timestamp) });
+      setShowHistoryModal(true);
+      setStatus({ type: 'success', message: 'Historial cargado' });
+    } catch (error) {
+      console.error("Error fetching asset history:", error);
+      setStatus({ type: 'error', message: 'Error cargando historial' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generarReporteHistorialPDF = (item, logs) => {
+    if (!item) return;
+    const doc = new jsPDF();
+    const title = `REPORTE DE TRAZABILIDAD: ${item.serialId}`;
+
+    doc.setFontSize(18);
+    doc.setTextColor(0, 150, 255);
+    doc.text(title, 20, 20);
+
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`${item.descripcion}`, 20, 28);
+    doc.text(`Generado: ${new Date().toLocaleString()}`, 20, 34);
+    doc.line(20, 38, 190, 38);
+
+    let yPos = 50;
+    logs.forEach((log, i) => {
+      if (yPos > 270) { doc.addPage(); yPos = 20; }
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      const typeStr = log.type === 'asignacion' ? "ASIGNACION" : log.type === 'retorno' ? "RETORNO" : "HITO";
+      doc.text(`${formatTime(log.timestamp).replace('📅', '')} - ${typeStr}`, 20, yPos);
+      yPos += 5;
+      
+      doc.setFont("helvetica", "normal");
+      doc.text(`Detalle: ${stripEmojis(log.details)}`, 25, yPos);
+      yPos += 5;
+      
+      const opName = log.operador === 'BASE' ? 'BASE OPERATIVA' : (personnel.find(p => p.address.toLowerCase() === log.operador?.toLowerCase())?.name || log.operador);
+      doc.text(`Responsable: ${stripEmojis(opName)}`, 25, yPos);
+      yPos += 5;
+      
+      doc.setFontSize(8);
+      doc.setTextColor(150);
+      doc.text(`TxHash: ${log.txHash}`, 25, yPos);
+      doc.setTextColor(0);
+      yPos += 10;
+    });
+
+    doc.save(`Historial_${item.serialId}.pdf`);
+  };
+
+  const generarReportePDF = (customIncident, customLogs) => {
+    const incident = customIncident || selectedV360Incident;
+    const logs = customLogs || v360Logs;
+    if (!incident) return;
 
     const doc = new jsPDF();
-    const eventId = selectedV360Incident.id.padStart(3, '0');
+    const eventId = incident.id.padStart(3, '0');
     const title = `REPORTE DE INCIDENTE ID-INC${eventId}`;
 
     // Header
@@ -128,9 +264,9 @@ function App() {
     doc.setTextColor(0);
     doc.text("INFORMACIÓN GENERAL", 20, 45);
     doc.setFontSize(10);
-    doc.text(`Estado: ${selectedV360Incident.activo ? "ACTIVO" : "CERRADO"}`, 25, 55);
-    doc.text(`Fecha Inicio: ${formatTime(selectedV360Incident.timestamp)}`, 25, 62);
-    doc.text(`Coordenadas: ${selectedV360Incident.coords || "N/A"}`, 25, 69);
+    doc.text(`Estado: ${incident.activo ? "ACTIVO" : "CERRADO"}`, 25, 55);
+    doc.text(`Fecha Inicio: ${formatTime(incident.timestamp).replace('📅', '').trim()}`, 25, 62);
+    doc.text(`Coordenadas: ${stripEmojis(incident.coords) || "N/A"}`, 25, 69);
 
     // Personnel & Resources
     let yPos = 85;
@@ -147,14 +283,14 @@ function App() {
       assignedPersonnel.forEach(p => {
         const role = p.isJefe ? "[JEFE]" : "[BRIGADISTA]";
         doc.setFont("helvetica", "bold");
-        doc.text(`${role} ${p.name} - ${p.specialty}`, 25, yPos);
+        doc.text(`${role} ${stripEmojis(p.name)} - ${stripEmojis(p.specialty)}`, 25, yPos);
         yPos += 6;
         doc.setFont("helvetica", "normal");
 
         const items = inventory.filter(item => item.custodio?.toLowerCase() === p.address?.toLowerCase() && item.estado === 1);
         if (items.length > 0) {
           items.forEach(item => {
-            doc.text(`  • 📦 ${item.descripcion} (${item.serialId})`, 30, yPos);
+            doc.text(`  • ${stripEmojis(item.descripcion)} (${item.serialId})`, 30, yPos);
             yPos += 5;
           });
         } else {
@@ -173,10 +309,10 @@ function App() {
     yPos += 10;
     doc.setFontSize(8);
 
-    if (v360Logs.length === 0) {
+    if (logs.length === 0) {
       doc.text("No hay hitos registrados.", 25, yPos);
     } else {
-      v360Logs.forEach(log => {
+      logs.forEach(log => {
         if (yPos > 270) { doc.addPage(); yPos = 20; }
         const time = new Date(log.timestamp * 1000).toLocaleString();
         doc.setTextColor(0, 150, 255);
@@ -184,7 +320,7 @@ function App() {
         yPos += 4;
         doc.setTextColor(0);
 
-        const splitDetails = doc.splitTextToSize(log.detalles, 160);
+        const splitDetails = doc.splitTextToSize(stripEmojis(log.detalles), 160);
         doc.text(splitDetails, 25, yPos);
         yPos += (splitDetails.length * 4) + 2;
       });
@@ -207,6 +343,9 @@ function App() {
     }
     setLoading(true)
     try {
+      // Solicitar explícitamente cuentas, crucial para navegadores móviles incrustados (ej. MetaMask in-app browser)
+      await window.ethereum.request({ method: 'eth_requestAccounts' })
+      
       const provider = new ethers.BrowserProvider(window.ethereum)
       const signer = await provider.getSigner()
       const address = await signer.getAddress()
@@ -231,7 +370,7 @@ function App() {
       }
     } catch (error) {
       console.error(error)
-      setStatus({ type: 'error', message: 'Error al conectar billetera.' })
+      setStatus({ type: 'error', message: `Error al conectar: ${error.message || 'Billetera rechazada'}` })
     } finally {
       setLoading(false)
     }
@@ -401,12 +540,20 @@ function App() {
     setLoading(true)
     try {
       const roleHash = newPerson.role === 2 ? await contractInstance.OPERADOR_ROLE() : await contractInstance.JEFE_ESCENA_ROLE()
-      const tx = await contractInstance.registrarPersonal(newPerson.address, newPerson.name, newPerson.specialty, roleHash)
+      const addressLimpio = newPerson.address.trim()
+      const nombreLimpio = newPerson.name.trim()
+      const especialidadLimpia = newPerson.specialty.trim()
+      
+      const tx = await contractInstance.registrarPersonal(addressLimpio, nombreLimpio, especialidadLimpia, roleHash)
       await tx.wait()
-      setStatus({ type: 'success', message: `Personal ${newPerson.name} registrado.` })
+      setStatus({ type: 'success', message: `Personal ${nombreLimpio} registrado.` })
       setNewPerson({ address: '', name: '', specialty: '', role: 2 })
       await hardRefresh()
-    } catch (error) { console.error(error); setStatus({ type: 'error', message: 'Error al registrar personal.' }) }
+    } catch (error) {
+      console.error("Error exacto de registro:", error);
+      const motivoRechazo = error.reason || error.message || 'Error desconocido';
+      setStatus({ type: 'error', message: `Error: ${motivoRechazo}` })
+    }
     finally { setLoading(false) }
   }
 
@@ -479,10 +626,13 @@ function App() {
               <option value="wild-green">🌿 Wild Green</option>
             </select>
           </div>
-          <button className={`btn ${account ? 'btn-outline' : ''}`} onClick={connectWallet} disabled={loading} style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            {loading ? <span className="spin">⏳</span> : <span>👛</span>}
-            {account ? `${account.substring(0, 6)}...` : 'CONECTAR WALLET'}
-          </button>
+          <div className="skin-dropdown-container">
+            <label className="skin-label">CONECTAR WALLET</label>
+            <button className={`btn ${account ? 'btn-outline' : ''}`} onClick={connectWallet} disabled={loading} style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {loading ? <span className="spin">⏳</span> : <span>👛</span>}
+              {account ? `${account.substring(0, 6).toUpperCase()}...` : 'CONECTAR'}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -583,17 +733,17 @@ function App() {
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          {fire.activo && (
+                            <button className="btn btn-secondary" style={{ padding: '0.4rem 0.75rem', fontSize: '0.70rem', border: '1px solid var(--accent-color)' }} onClick={() => setSelectedAssignmentIncident(fire)}>🔗 ASIGNAR RECURSO</button>
+                          )}
                           <button
                             className="btn btn-secondary"
-                            style={{ padding: '0.4rem 1rem', fontSize: '0.75rem', border: '1px solid var(--accent-color)', opacity: fire.activo ? 1 : 0.5 }}
+                            style={{ padding: '0.4rem 0.75rem', fontSize: '0.70rem', border: '1px solid var(--accent-color)', opacity: fire.activo ? 1 : 0.5 }}
                             onClick={(e) => { e.stopPropagation(); setSelectedV360Incident(fire); setShowV360Modal(true); }}
                           >
-                            👁️ VISIÓN 360
+                            👁️ RESUMEN EVENTO
                           </button>
-                          {fire.activo && (
-                            <button className="btn btn-secondary" style={{ padding: '0.4rem 1rem', fontSize: '0.75rem', border: '1px solid var(--accent-color)' }} onClick={() => setSelectedAssignmentIncident(fire)}>🔗 ASIGNAR RECURSO</button>
-                          )}
-                          <button className="btn btn-secondary" style={{ padding: '0.4rem 1rem', fontSize: '0.75rem' }} onClick={() => { setSelectedIncident(fire); setCurrentView('tactical'); }}>🚀 {fire.activo ? 'PANEL DE CONTROL' : 'VER BITÁCORA'}</button>
+                          <button className="btn btn-secondary" style={{ padding: '0.4rem 0.75rem', fontSize: '0.70rem' }} onClick={() => { setSelectedIncident(fire); setCurrentView('tactical'); }}>🚀 {fire.activo ? 'PANEL DE CONTROL' : 'VER BITÁCORA'}</button>
                         </div>
                       </div>
                     ))}
@@ -614,13 +764,16 @@ function App() {
                     </p>
                   )}
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <label style={{ fontSize: '0.7rem', color: '#666' }}>FILTRAR:</label>
-                  <select className="skin-select" style={{ padding: '0.3rem', fontSize: '0.7rem', width: 'auto' }} value={personnelFilter} onChange={(e) => setPersonnelFilter(e.target.value)}>
-                    <option value="all">TODOS</option>
-                    <option value="available">DISPONIBLES 🟢</option>
-                    <option value="assigned">EN INCIDENTE 🔴</option>
-                  </select>
+                <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <label style={{ fontSize: '0.7rem', color: '#666' }}>FILTRAR:</label>
+                    <select className="skin-select" style={{ padding: '0.3rem', fontSize: '0.7rem', width: 'auto' }} value={personnelFilter} onChange={(e) => setPersonnelFilter(e.target.value)}>
+                      <option value="all">TODOS</option>
+                      <option value="available">DISPONIBLES 🟢</option>
+                      <option value="assigned">EN INCIDENTE 🔴</option>
+                    </select>
+                  </div>
+                  <button className="btn btn-secondary" style={{ fontSize: '0.75rem', padding: '0.3rem 0.8rem' }} onClick={() => hardRefresh()}>🔄 ACTUALIZAR PERSONAL</button>
                 </div>
               </div>
               {isBaseOperativa && (
@@ -635,7 +788,7 @@ function App() {
                   <button className="btn" onClick={registrarPersonal} disabled={loading}>{loading ? '...' : '➕ REGISTRAR'}</button>
                 </div>
               )}
-              <div style={{ maxHeight: '250px', overflowY: 'auto', background: 'rgba(0,0,0,0.1)', padding: '1rem', borderRadius: '8px' }}>
+              <div style={{ background: 'rgba(0,0,0,0.1)', padding: '1.2rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
                 <table style={{ width: '100%', fontSize: '1rem' }}>
                   <thead>
                     <tr style={{ textAlign: 'left', borderBottom: '1px solid #333' }}>
@@ -663,19 +816,70 @@ function App() {
                           const isAssignedAsBrigadista = inventory.some(item => item.custodio?.toLowerCase() === p.address?.toLowerCase() && item.estado === 1);
                           const isAssignedAsJefe = p.isJefe && incidents.some(fire => fire.jefe?.toLowerCase() === p.address?.toLowerCase());
                           const isAssigned = isAssignedAsBrigadista || isAssignedAsJefe;
-                          return (
-                            <tr key={p.address} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                              <td style={{ padding: '0.5rem 0' }}>{p.name}</td>
-                              <td>{p.specialty}</td>
-                              <td style={{ fontSize: '0.8rem', opacity: 0.6 }}><code>{p.address.substring(0, 6)}...{p.address.substring(38)}</code></td>
-                              <td>
-                                <span className="status-badge" style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem', background: p.estado === 'DISPONIBLE' ? 'rgba(77,255,77,0.1)' : 'rgba(255,77,77,0.1)', color: p.estado === 'DISPONIBLE' ? '#4dff4d' : '#ff4d4d', fontWeight: 'bold', borderRadius: '4px' }}>
-                                  {p.estado}
-                                </span>
-                              </td>
-                              <td style={{ color: p.incidente !== '---' ? 'var(--accent-color)' : '#666', fontWeight: p.incidente !== '---' ? 'bold' : 'normal' }}>
-                                {p.incidente}
-                              </td>
+                            return (
+                              <tr key={p.address} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                <td style={{ padding: '1rem 0', verticalAlign: 'top' }}>
+                                  <div style={{ fontWeight: 'bold', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1 }}>
+                                      {p.isJefe ? '👨‍🚒' : '👤'} {p.name}
+                                    </div>
+                                    {inventory.some(item => item.custodio?.toLowerCase() === p.address?.toLowerCase() && item.estado === 1) && (
+                                      <button 
+                                        className="btn-sq" 
+                                        style={{ 
+                                          width: '20px', 
+                                          height: '20px', 
+                                          display: 'flex', 
+                                          alignItems: 'center', 
+                                          justifyContent: 'center', 
+                                          padding: 0, 
+                                          fontSize: '0.9rem', 
+                                          border: '1px solid rgba(255,255,255,0.2)', 
+                                          background: 'rgba(255,255,255,0.05)', 
+                                          borderRadius: '4px', 
+                                          cursor: 'pointer', 
+                                          color: 'var(--accent-color)',
+                                          fontWeight: 'bold',
+                                          marginLeft: 'auto'
+                                        }}
+                                        onClick={() => togglePersonExpansion(p.address)}
+                                        title={expandedPersonnel.has(p.address) ? 'Colapsar' : 'Expandir'}
+                                      >
+                                        {expandedPersonnel.has(p.address) ? '−' : '+'}
+                                      </button>
+                                    )}
+                                  </div>
+                                  {expandedPersonnel.has(p.address) && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', animation: 'fadeIn 0.2s ease' }}>
+                                      {inventory.filter(item => item.custodio?.toLowerCase() === p.address?.toLowerCase() && item.estado === 1).map(item => (
+                                        <div key={item.hash} style={{ 
+                                          fontSize: '0.7rem', 
+                                          color: '#bbb', 
+                                          background: 'rgba(255,255,255,0.03)', 
+                                          padding: '0.3rem 0.6rem', 
+                                          borderRadius: '4px', 
+                                          border: '1px solid rgba(255,255,255,0.05)',
+                                          display: 'flex',
+                                          justifyContent: 'space-between',
+                                          alignItems: 'center'
+                                        }}>
+                                          <span>📦 {item.descripcion}</span>
+                                          <code style={{ opacity: 0.4, fontSize: '0.6rem' }}>{item.serialId}</code>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </td>
+                                <td style={{ verticalAlign: 'top', padding: '1rem 0' }}>{p.specialty}</td>
+                                <td style={{ verticalAlign: 'top', padding: '1rem 0', fontSize: '0.8rem', opacity: 0.6 }}><code>{p.address.substring(0, 6)}...{p.address.substring(38)}</code></td>
+                                <td style={{ verticalAlign: 'top', padding: '1rem 0' }}>
+                                  <span className="status-badge" style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem', background: p.estado === 'DISPONIBLE' ? 'rgba(77,255,77,0.1)' : 'rgba(255,77,77,0.1)', color: p.estado === 'DISPONIBLE' ? '#4dff4d' : '#ff4d4d', fontWeight: 'bold', borderRadius: '4px' }}>
+                                    {p.estado}
+                                  </span>
+                                </td>
+                                <td style={{ verticalAlign: 'top', padding: '1rem 0', color: p.incidente !== '---' ? 'var(--accent-color)' : '#666', fontWeight: p.incidente !== '---' ? 'bold' : 'normal' }}>
+                                  {p.incidente}
+                                </td>
                             </tr>
                           );
                         })
@@ -701,11 +905,19 @@ function App() {
           {showInventory && (
             <div className="card" style={{ animation: 'fadeIn 0.3s ease' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <h2>📦 Tablero de Logística Forestal</h2>
-                  <input type="text" placeholder="Buscar recurso o ID..." className="skin-select" style={{ padding: '0.4rem 1rem', width: '250px', backgroundImage: 'none', fontSize: '0.8rem' }} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', flexWrap: 'wrap' }}>
+                  <h2 style={{ margin: 0 }}>📦 Tablero de Logística Forestal</h2>
+                  <input type="text" placeholder="Buscar recurso o ID..." className="skin-select" style={{ padding: '0.4rem 0.8rem', width: '160px', backgroundImage: 'none', fontSize: '0.75rem' }} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <label style={{ fontSize: '0.7rem', color: '#666' }}>FILTRAR:</label>
+                    <select className="skin-select" style={{ padding: '0.3rem', fontSize: '0.7rem', width: 'auto' }} value={inventoryFilter} onChange={(e) => setInventoryFilter(e.target.value)}>
+                      <option value="all">TODOS</option>
+                      <option value="available">DISPONIBLES 🟢</option>
+                      <option value="operation">EN OPERACIÓN 🔴</option>
+                    </select>
+                  </div>
                 </div>
-                <button className="btn btn-secondary" style={{ fontSize: '0.75rem', padding: '0.5rem 1rem' }} onClick={() => hardRefresh()}>🔄 Refrescar Stock</button>
+                <button className="btn btn-secondary" style={{ fontSize: '0.7rem', padding: '0.4rem 0.8rem' }} onClick={() => hardRefresh()}>🔄 ACTUALIZAR STOCK</button>
               </div>
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '1.05rem' }}>
@@ -714,18 +926,23 @@ function App() {
                       <th style={{ padding: '1rem', width: '50px' }}>#</th>
                       <th style={{ padding: '1rem', width: '120px' }}>ID SERIAL</th>
                       <th style={{ padding: '1rem', width: '120px' }}>HASH ACTIVO</th>
-                      <th style={{ padding: '1rem' }}>RECURSO</th>
-                      <th style={{ padding: '1rem' }}>CAPACIDAD/CONSUMO</th>
+                       <th style={{ padding: '1rem' }}>RECURSO</th>
+                      <th style={{ padding: '1rem', width: '100px' }}>CAPACIDAD</th>
+                      <th style={{ padding: '1rem', width: '120px' }}>HISTORIAL</th>
                       <th style={{ padding: '1rem' }}>ESTADO</th>
                       <th style={{ padding: '1rem' }}>INCIDENTE</th>
                     </tr>
                   </thead>
                   <tbody>
                     {inventory
-                      .filter(item =>
-                        item.serialId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                        item.descripcion.toLowerCase().includes(searchTerm.toLowerCase())
-                      )
+                      .filter(item => {
+                        const matchesSearch = item.serialId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          item.descripcion.toLowerCase().includes(searchTerm.toLowerCase());
+                        
+                        if (inventoryFilter === 'available') return matchesSearch && item.estado === 0;
+                        if (inventoryFilter === 'operation') return matchesSearch && item.estado === 1;
+                        return matchesSearch;
+                      })
                       .map((item, idx) => (
                         <tr key={item.hash} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                           <td style={{ padding: '1rem', color: '#666' }}>{idx + 1}</td>
@@ -741,9 +958,18 @@ function App() {
                             )}
                           </td>
                           <td style={{ padding: '1rem', color: 'var(--text-secondary)', maxWidth: '100px' }}>
-                            <div style={{ wordBreak: 'break-word', whiteSpace: 'normal', lineHeight: '1.2' }}>
-                              {item.consumo > 0 ? `${item.consumo} ml/h` : 'Manual / Herramienta'}
+                            <div style={{ wordBreak: 'break-word', whiteSpace: 'normal', lineHeight: '1', fontSize: '0.85rem' }}>
+                              {item.consumo > 0 ? `${item.consumo} ml/h` : <div>Manual /<br/>Herramienta</div>}
                             </div>
+                          </td>
+                          <td style={{ padding: '1rem' }}>
+                            <button 
+                              className="btn btn-secondary" 
+                              onClick={() => fetchAssetHistory(item)}
+                              style={{ padding: '0.2rem 0.6rem', fontSize: '0.65rem', borderRadius: '20px', border: '1px solid #444', background: 'rgba(255,255,255,0.05)' }}
+                            >
+                              🔍 VER HISTORIAL
+                            </button>
                           </td>
                           <td style={{ padding: '1rem' }}>
                             <span className="status-badge" style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem', background: item.estado === 0 ? 'rgba(77,255,77,0.1)' : 'rgba(255,77,77,0.1)', color: item.estado === 0 ? '#4dff4d' : '#ff4d4d', fontWeight: 'bold', borderRadius: '4px' }}>
@@ -772,7 +998,15 @@ function App() {
           </div>
         </main>
       ) : (
-        <TacticalPanel eventoId={selectedIncident.id} coordenadas={selectedIncident.coords} contract={contractInstance} onBack={() => setCurrentView('inventory')} />
+        <TacticalPanel 
+          eventoId={selectedIncident.id} 
+          coordenadas={selectedIncident.coords} 
+          contract={contractInstance} 
+          onBack={() => setCurrentView('inventory')} 
+          onGenerateReport={(logs) => generarReportePDF(selectedIncident, logs)}
+          inventory={inventory}
+          personnel={personnel}
+        />
       )
       }
 
@@ -826,7 +1060,7 @@ function App() {
           <div className="card" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 1001, width: '95%', maxWidth: '700px', border: '2px solid var(--accent-color)', boxShadow: '0 0 50px rgba(0,0,0,0.9)', background: '#111', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #333', padding: '1rem 1.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <span style={{ fontSize: '1.5rem' }}>�</span>
+                <span style={{ fontSize: '1.5rem' }}>📋</span>
                 <h3 style={{ margin: 0, letterSpacing: '1px' }}>RESUMEN DEL EVENTO</h3>
               </div>
               <button className="btn btn-secondary" onClick={() => setShowV360Modal(false)} style={{ padding: '0.2rem 0.6rem' }}>×</button>
@@ -904,15 +1138,15 @@ function App() {
                   )}
                 </div>
               </div>
+            </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '2rem', borderTop: '1px solid #333', paddingTop: '1.5rem' }}>
-                <button className="btn btn-secondary" style={{ width: '100%', fontSize: '0.85rem', fontWeight: 'bold', letterSpacing: '1px' }} onClick={() => { setShowV360Modal(false); setSelectedIncident(selectedV360Incident); setCurrentView('tactical'); }}>
-                  �️ PANEL DE CONTROL
-                </button>
-                <button className="btn" style={{ width: '100%', fontSize: '0.85rem', fontWeight: 'bold', letterSpacing: '1px', background: 'var(--accent-color)', color: '#000' }} onClick={generarReportePDF}>
-                  📄 GENERAR REPORTE
-                </button>
-              </div>
+            <div style={{ padding: '1.5rem', borderTop: '1px solid #333', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: '#111', borderBottomLeftRadius: '20px', borderBottomRightRadius: '20px' }}>
+              <button className="btn btn-secondary" style={{ width: '100%', fontSize: '0.85rem', fontWeight: 'bold', letterSpacing: '1px' }} onClick={() => { setShowV360Modal(false); setSelectedIncident(selectedV360Incident); setCurrentView('tactical'); }}>
+                🚀 PANEL DE CONTROL
+              </button>
+              <button className="btn" style={{ width: '100%', fontSize: '0.85rem', fontWeight: 'bold', letterSpacing: '1px', background: 'var(--accent-color)', color: '#000' }} onClick={() => generarReportePDF()}>
+                📄 GENERAR REPORTE
+              </button>
             </div>
           </div>
         )
@@ -921,7 +1155,58 @@ function App() {
       <footer style={{ marginTop: '4rem', padding: '2rem 0', borderTop: '1px solid var(--glass-border)', textAlign: 'center' }}>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', letterSpacing: '1px' }}>FIREOPS v1.1 • Web3 Ecosystem</p>
       </footer>
-    </div >
+      {showHistoryModal && historyData.item && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(5px)', zIndex: 1999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setShowHistoryModal(false)}>
+          <div className="card" onClick={(e) => e.stopPropagation()} style={{ position: 'relative', top: 'auto', left: 'auto', transform: 'none', zIndex: 2000, width: '100%', maxWidth: '600px', border: '2px solid var(--accent-color)', boxShadow: '0 0 50px rgba(0,0,0,0.9)', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.8rem' }}>
+              <div>
+                <h3 style={{ margin: 0, color: 'var(--accent-color)' }}>📜 HISTORIAL DE ACTIVO</h3>
+                <div style={{ fontSize: '0.9rem', fontWeight: 'bold', marginTop: '0.2rem' }}>{historyData.item.serialId} | {historyData.item.descripcion}</div>
+              </div>
+              <button className="btn btn-secondary" onClick={() => setShowHistoryModal(false)}>×</button>
+            </div>
+
+            <div style={{ overflowY: 'auto', flex: 1, paddingRight: '0.5rem' }} className="custom-scrollbar">
+              {historyData.logs.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '3rem', opacity: 0.5 }}>
+                  No se encontraron registros previos para este activo en la blockchain.
+                </div>
+              ) : (
+                <div style={{ position: 'relative', paddingLeft: '2rem' }}>
+                  <div style={{ position: 'absolute', left: '7px', top: '10px', bottom: '10px', width: '2px', background: 'rgba(255,165,0,0.2)' }}></div>
+                  {historyData.logs.map((log, i) => (
+                    <div key={i} style={{ position: 'relative', marginBottom: '1.5rem' }}>
+                      <div style={{ position: 'absolute', left: '-29px', top: '5px', width: '16px', height: '16px', borderRadius: '50%', background: log.type === 'asignacion' ? '#ffa500' : log.type === 'retorno' ? '#4dff4d' : '#0096ff', border: '3px solid #111', zIndex: 2 }}></div>
+                      <div style={{ fontSize: '0.7rem', color: '#888', marginBottom: '0.2rem' }}>{formatTime(log.timestamp)}</div>
+                      <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.8rem', borderRadius: '8px', borderLeft: `3px solid ${log.type === 'asignacion' ? '#ffa500' : log.type === 'retorno' ? '#4dff4d' : '#0096ff'}` }}>
+                        <div style={{ fontWeight: 'bold', fontSize: '0.9rem', marginBottom: '0.3rem' }}>
+                          {log.type === 'asignacion' && '🚀 ASIGNACIÓN TÁCTICA'}
+                          {log.type === 'hito' && '📝 REPORTE DE CAMPO'}
+                          {log.type === 'retorno' && '✅ RETORNO A BASE'}
+                        </div>
+                        <div style={{ fontSize: '0.85rem', color: '#ccc' }}>{log.details}</div>
+                        
+                        <div style={{ fontSize: '0.75rem', marginTop: '0.5rem', color: 'var(--accent-color)', fontWeight: 'bold' }}>
+                          Responsable: {log.operador === 'BASE' ? 'BASE OPERATIVA' : (personnel.find(p => p.address.toLowerCase() === log.operador?.toLowerCase())?.name || log.operador)}
+                        </div>
+                        <div style={{ fontSize: '0.65rem', marginTop: '0.2rem', color: '#555', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                          TxHash: {log.txHash}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem' }}>
+              <button className="btn btn-secondary" onClick={() => generarReporteHistorialPDF(historyData.item, historyData.logs)} style={{ flex: 1, padding: '0.8rem', fontSize: '0.8rem' }}>📦 REPORTE HISTORIAL</button>
+              <button className="btn btn-secondary" onClick={() => setShowHistoryModal(false)} style={{ flex: 1, padding: '0.8rem', fontSize: '0.8rem' }}>CERRAR HISTORIAL</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 

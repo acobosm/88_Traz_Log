@@ -252,13 +252,17 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
         inventario[_codigo].custodioActual = _operador;
         inventario[_codigo].inicioUso = block.timestamp;
 
+        string memory nombreInsumo = inventario[_codigo].descripcion;
+        string memory nombreOperador = brigadistas[_operador].nombre;
+        string memory mensajeDetalle = string.concat("Asignacion de Recurso: ", nombreInsumo, " entregado a ", nombreOperador);
+
         bitacoraEvento[_eventoID].push(
             LogOperativo({
                 eventoID: _eventoID,
                 codigoInsumo: _codigo,
                 operador: _operador,
                 timestamp: block.timestamp,
-                detalles: "Asignado a combatiente",
+                detalles: mensajeDetalle,
                 esDiscrepancia: false
             })
         );

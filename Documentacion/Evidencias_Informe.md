@@ -304,43 +304,48 @@ Se ha incorporado el script `scripts/purge.sh` para garantizar una ejecución li
 
 ### Archivos de Referencia - Fase 4
 - [App.jsx](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/frontend/src/App.jsx) - Motor de lógica Web3 y Feedback de eventos.
-- [monitor.sh](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/scripts/monitor.sh) - Layout dinámico de monitorización.
+- [monitor.sh](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz%20Log/scripts/monitor.sh) - Layout dinámico de monitorización.
 - [index.css](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/frontend/src/index.css) - Definición de Skins y Estética Táctica.
 - [TrazabilidadLogistica.t.sol](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/test/TrazabilidadLogistica.t.sol#L105-154) - Tests de Batch e Idempotencia.
+### Fase 5: Panel de Control FireOps y Trazabilidad Avanzada
 
-### Fase 5: Panel de Control FireOps
+Se ha consolidado el **Centro de Mando Táctico** uniendo la potencia de la blockchain con la visualización geoespacial avanzada para el Jefe de Escena.
 
-Se ha iniciado el despliegue del **Centro de Mando Táctico** para el Jefe de Escena, uniendo la potencia de la blockchain con la visualización geoespacial avanzada.
+#### 1. Evolución Tecnológica y Geoespacial
+- **Integración de Leaflet**: Se ha implementado un visor persistente basado en la librería Leaflet que permite la visualización táctica sobre cartografía satelital (Esri).
+- **Bitácora Táctica Inmutable**: Se ha ampliado el Smart Contract con la función `registrarBitacoraTactica` para guardar marcas de peligro y ubicación de recursos de forma inmutable.
+- **Visibilidad Inteligente (Radar)**: Implementación de un sistema de "Key Compuesta" (`lat+lng+label+type`) para gestionar pines duplicados y permitir el modo "fantasma" (30% opacidad).
 
-#### Evolución Tecnológica:
-1. **Integración de Leaflet**: Se ha implementado un visor persistente basado en la librería Leaflet que permite la visualización táctica sobre cartografía satelital (Esri).
-2. **Bitácora Táctica Inmutable**: Se ha ampliado el Smart Contract con la función `registrarBitacoraTactica` para guardar marcas de peligro y ubicación de recursos.
-3. **Gestión de Identidad (Mapping vs Array)**: Se ha implementado una mejora estructural para permitir la enumeración de brigadistas en el frontend (ver detalle abajo).
-4. **Control de Acceso**: Solo los usuarios con el rol `JEFE_ESCENA_ROLE` pueden interactuar con este panel.
+#### 2. Detalle Técnico: Mapping vs. Array en Gestión de Personal
+Originalmente, los brigadistas se almacenaban en un `mapping`. Para permitir la iteración en el frontend, se implementó un **Patrón de Almacenamiento Dual**:
+- **Arreglo (`listaPersonal`)**: Permite al frontend listar a todos los brigadistas.
+- **Mapping (`brigadistas`)**: Mantiene la eficiencia para consultas directas y seguridad de roles.
 
----
+#### 3. Trazabilidad de Activos y Auditoría Blockchain
+Se ha añadido un motor de auditoría específico para cada recurso del inventario:
+- **Agregación de Logs**: El sistema consulta los eventos `InsumoAsignado`, `HitoRegistrado` e `InsumoRetornado` asociados al hash del activo.
+- **Resolución de Nombres**: Traduce direcciones `0x...` a nombres reales (ej. "Sung Jin-woo") cruzando datos con la lista de personal.
+- **Transparencia Total**: Cada hito muestra su **TxHash** original, permitiendo auditar la veracidad del dato en la red.
 
-### Detalle Técnico: Mapping vs. Array en Gestión de Personal
+#### 4. Sistema de Reportes PDF Profesional (jsPDF)
+- **Sanitización de Datos**: Implementación de `stripEmojis` para garantizar reportes limpios y profesionales, eliminando artefactos visuales de codificación.
+- **Reporte de Trazabilidad**: Generación de un documento de "Hoja de Vida" para cualquier activo del tablero logístico.
 
-#### Contexto y Problemática
-Originalmente, los brigadistas se almacenaban únicamente en un `mapping(address => Personal)`. Debido a que los mappings en Solidity **no son iterables**, el frontend no podía listar a todos los brigadistas registrados.
+#### 5. Optimización del Tablero Logístico
+- **Filtrado Dinámico**: Dropdown de estados (TODOS / DISPONIBLES / EN OPERACIÓN).
+- **Interfaz Compacta**: Rediseño del encabezado para mantener la operatividad en una sola línea táctica.
 
-#### La Solución: Patrón de Almacenamiento Dual
-Se implementó un arreglo global `address[] public listaPersonal` que trabaja en conjunto con el mapping:
-- **Mapping**: Mantiene la eficiencia de gas para consultas directas y seguridad de roles.
-- **Arreglo**: Permite al frontend iterar sobre las direcciones para reconstruir la lista de personal disponible en los menús de selección.
+### Archivos de Referencia - Fase 5
+- [App.jsx](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz%20Log/frontend/src/App.jsx) - Implementación de filtros, historial y PDF.
+- [TacticalPanel.jsx](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz%20Log/frontend/src/TacticalPanel.jsx) - Lógica de visibilidad y monitoreo táctico.
 
-### Verificación de Roles y Permisos (Extensión Fase 2.3)
-Se ha actualizado el acceso a la función `registrarPersonal`:
-- **Cambio**: Ahora permitido para `DEFAULT_ADMIN_ROLE` y `BASE_OPERATIVA_ROLE`.
-- **Razón**: Autonomía de la Base Operativa para el despliegue rápido de personal en el campo.
+## Fase 6: Ecosistema Multirol y Gestión Administrativa (En Planificación)
+El proyecto escala de una gestión monobase a una arquitectura multinivel coordinada.
+- **Dashboard de Administración**: Panel maestro para el registro de nuevas Bases Operativas en la blockchain.
+- **Dashboard Brigadista**: Interfaz "Lite" para reporte de hitos críticos desde el smartphone.
+- **Optimización de Campo**: Ajustes UX para movilidad y baja conectividad.
 
----
-
----
-
-## Fase 6: Auditoría de Consumo e Integridad
-*Pendiente de ejecución*
-
-## Fase 7: Cierre y Documentación Final
-*Pendiente de ejecución*
+## Fase 7: Auditoría Final, Retornos y Cierre
+- **Interfaz de Devolución**: Refinamiento de la lógica de retorno de activos con sistema visual de alertas por discrepancia.
+- **QA de End-to-End**: Prueba de estrés final simulando la coordinación entre el Administrador Global, múltiples Bases y Brigadistas en un solo incidente.
+- **Consolidación Final**: Entrega del informe técnico de evidencias y subida a repositorios oficiales.
