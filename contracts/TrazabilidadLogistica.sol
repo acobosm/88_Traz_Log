@@ -4,6 +4,7 @@ pragma solidity ^0.8.19;
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
  * @title TrazabilidadLogistica
@@ -16,6 +17,7 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
     bytes32 public constant OPERADOR_ROLE = keccak256("OPERADOR_ROLE");
     bytes32 public constant AUDITOR_ROLE = keccak256("AUDITOR_ROLE");
     bytes32 public constant CONSULTOR_ROLE = keccak256("CONSULTOR_ROLE");
+
 
     // --- Enumeraciones ---
 
@@ -62,6 +64,14 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
         string coordenadas;
         uint256 riesgo; // 1-5
         bool activo;
+        bytes32[] recursosAsignados; // Seguimiento de recursos para cierre automático
+    }
+
+    struct AuditoriaPendiente {
+        EstadoInsumo estadoPropuesto;
+        uint256 consumoReal;
+        string motivo;
+        bool activa;
     }
 
     struct LogOperativo {
@@ -83,6 +93,11 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
     mapping(uint256 => LogOperativo[]) public bitacoraEvento;
     mapping(address => bool) public basesAutorizadas;
     address[] public listaPersonal; // Lista iterable para el frontend
+    mapping(bytes32 => AuditoriaPendiente) public auditoriasPendientes; // Handshake de retorno
+
+    // --- Seguimiento de Despliegue (Fase 3.19) ---
+    mapping(address => uint256) public despliegueActual; // ID del incidente donde está trabajando
+    mapping(address => uint256) public contadorRecursos; // Cuántos activos tiene en custodia
 
     // --- Eventos ---
 
@@ -99,6 +114,7 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
     event HitoRegistrado(
         uint256 indexed eventoID,
         bytes32 indexed codigo,
+        address indexed operador,
         string detalles
     );
     event IncendioIniciado(
@@ -118,6 +134,12 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
         uint256 indexed eventoID,
         bytes32 indexed codigo,
         string motivo
+    );
+    event RiesgoActualizado(
+        uint256 indexed eventoID,
+        uint256 viejoRiesgo,
+        uint256 nuevoRiesgo,
+        address autor
     );
 
     constructor() {
@@ -227,7 +249,8 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
             timestampFin: 0,
             coordenadas: _coordenadas,
             riesgo: _riesgo,
-            activo: true
+            activo: true,
+            recursosAsignados: new bytes32[](0)
         });
 
         emit IncendioIniciado(_id, _coordenadas, _riesgo);
@@ -248,9 +271,20 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
             "Destinatario no es operador"
         );
 
+        // --- Verificación de Exclusividad (Fase 3.19) ---
+        require(
+            despliegueActual[_operador] == 0 || despliegueActual[_operador] == _eventoID,
+            "Brigadista asignado a otro incidente activo"
+        );
+
         inventario[_codigo].estado = EstadoInsumo.EnUso;
         inventario[_codigo].custodioActual = _operador;
         inventario[_codigo].inicioUso = block.timestamp;
+        
+        // Actualizar seguimiento de despliegue
+        incendios[_eventoID].recursosAsignados.push(_codigo);
+        despliegueActual[_operador] = _eventoID;
+        contadorRecursos[_operador]++;
 
         string memory nombreInsumo = inventario[_codigo].descripcion;
         string memory nombreOperador = brigadistas[_operador].nombre;
@@ -294,7 +328,7 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
             })
         );
 
-        emit HitoRegistrado(_eventoID, _codigo, _detalles);
+        emit HitoRegistrado(_eventoID, _codigo, msg.sender, _detalles);
     }
 
     /**
@@ -319,60 +353,186 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
             })
         );
 
-        emit HitoRegistrado(_eventoID, bytes32(0), _detalles);
+        emit HitoRegistrado(_eventoID, bytes32(0), msg.sender, _detalles);
     }
 
     function cerrarIncidente(
         uint256 _eventoID
-    ) external onlyRole(JEFE_ESCENA_ROLE) {
+    ) external onlyRole(JEFE_ESCENA_ROLE) whenNotPaused {
         require(incendios[_eventoID].activo, "Ya cerrado");
         incendios[_eventoID].activo = false;
         incendios[_eventoID].timestampFin = block.timestamp;
 
+        // Disparador Automático: Todos los recursos asignados pasan a "EnRetorno"
+        bytes32[] memory recursos = incendios[_eventoID].recursosAsignados;
+        for (uint256 i = 0; i < recursos.length; i++) {
+            bytes32 codigo = recursos[i];
+            if (inventario[codigo].estado == EstadoInsumo.EnUso) {
+                inventario[codigo].estado = EstadoInsumo.EnRetorno;
+            }
+        }
+
         emit IncendioCerrado(_eventoID);
+    }
+
+    /**
+     * @dev Permite actualizar el nivel de riesgo de un incendio activo.
+     * @param _eventoID ID del incidente.
+     * @param _nuevoRiesgo Nuevo nivel de riesgo (1-5).
+     */
+    function actualizarRiesgoIncendio(
+        uint256 _eventoID,
+        uint256 _nuevoRiesgo
+    ) external whenNotPaused {
+        require(
+            hasRole(JEFE_ESCENA_ROLE, msg.sender) ||
+                hasRole(BASE_OPERATIVA_ROLE, msg.sender),
+            "No autorizado"
+        );
+        require(incendios[_eventoID].activo, "Evento no activo");
+        require(_nuevoRiesgo >= 1 && _nuevoRiesgo <= 5, "Riesgo invalido");
+
+        uint256 riesgoAnterior = incendios[_eventoID].riesgo;
+        incendios[_eventoID].riesgo = _nuevoRiesgo;
+
+        bitacoraEvento[_eventoID].push(
+            LogOperativo({
+                eventoID: _eventoID,
+                codigoInsumo: bytes32(0),
+                operador: msg.sender,
+                timestamp: block.timestamp,
+                detalles: string.concat(
+                    "Cambio de Nivel de Riesgo: ",
+                    Strings.toString(riesgoAnterior),
+                    " -> ",
+                    Strings.toString(_nuevoRiesgo)
+                ),
+                esDiscrepancia: false
+            })
+        );
+
+        emit RiesgoActualizado(
+            _eventoID,
+            riesgoAnterior,
+            _nuevoRiesgo,
+            msg.sender
+        );
     }
 
     // --- Funciones Fase 3: Auditoría y Retorno ---
 
-    function retornarInsumo(
+    /**
+     * @dev Paso 1 del Handshake (Brigadista): Deslinde manual temprano.
+     * Útil si el equipo se rompe antes de que acabe el incendio.
+     */
+    function iniciarRetorno(bytes32 _codigo) external onlyRole(OPERADOR_ROLE) whenNotPaused {
+        require(inventario[_codigo].custodioActual == msg.sender, "No es el custodio");
+        require(inventario[_codigo].estado == EstadoInsumo.EnUso, "No esta en uso");
+        
+        inventario[_codigo].estado = EstadoInsumo.EnRetorno;
+        // El brigadista declara que el equipo va de vuelta.
+        // Registramos un hito automático de retorno.
+        uint256 eventoID = despliegueActual[msg.sender];
+        if (eventoID != 0) {
+            string memory detalleRetorno = "Retorno Anticipado: El equipo va de vuelta a base antes del cierre.";
+            bitacoraEvento[eventoID].push(LogOperativo({
+                eventoID: eventoID,
+                codigoInsumo: _codigo,
+                operador: msg.sender,
+                timestamp: block.timestamp,
+                detalles: detalleRetorno,
+                esDiscrepancia: false
+            }));
+            emit HitoRegistrado(eventoID, _codigo, msg.sender, detalleRetorno);
+        }
+    }
+
+    /**
+     * @dev Paso 2 del Handshake (Base Operativa): Auditoria de recepción fisica.
+     */
+    function registrarAuditoria(
         bytes32 _codigo,
-        EstadoInsumo _estadoFinal,
+        EstadoInsumo _estadoPropuesto,
         uint256 _consumoReal,
         string memory _motivoDiscrepancia
-    ) external onlyRole(BASE_OPERATIVA_ROLE) nonReentrant {
+    ) external onlyRole(BASE_OPERATIVA_ROLE) whenNotPaused nonReentrant {
+        require(inventario[_codigo].estado == EstadoInsumo.EnRetorno, "No esta en retorno");
+        
+        auditoriasPendientes[_codigo] = AuditoriaPendiente({
+            estadoPropuesto: _estadoPropuesto,
+            consumoReal: _consumoReal,
+            motivo: _motivoDiscrepancia,
+            activa: true
+        });
+
+        // El equipo queda bloqueado esperando la firma del brigadista.
+    }
+
+    /**
+     * @dev Paso 3 del Handshake (Brigadista): Firma de Acta y Liberacion.
+     * El brigadista firma que esta de acuerdo con la auditoria de base.
+     */
+    function firmarDeslinde(bytes32 _codigo) external onlyRole(OPERADOR_ROLE) whenNotPaused nonReentrant {
+        require(inventario[_codigo].custodioActual == msg.sender, "No es el custodio");
+        require(auditoriasPendientes[_codigo].activa, "No hay auditoria pendiente");
+
+        AuditoriaPendiente memory aud = auditoriasPendientes[_codigo];
         Insumo storage insumo = inventario[_codigo];
-        require(
-            insumo.estado == EstadoInsumo.EnUso ||
-                insumo.estado == EstadoInsumo.EnRetorno,
-            "No estaba en uso"
-        );
 
         // --- Lógica de Auditoría Automática de Consumo ---
         if (insumo.consumoNominal > 0 && insumo.inicioUso > 0) {
             uint256 tiempoUsoSegundos = block.timestamp - insumo.inicioUso;
-            // Cálculo: (Tiempo en horas) * consumoNominal
-            // Usamos base de segundos para mayor precisión.
-            uint256 consumoEsperado = (tiempoUsoSegundos *
-                insumo.consumoNominal) / 3600;
+            uint256 consumoEsperado = (tiempoUsoSegundos * insumo.consumoNominal) / 3600;
 
-            // Alerta si el consumo real supera el esperado en más de un 20% (ajustable)
-            if (_consumoReal > (consumoEsperado * 120) / 100) {
-                emit AlertaConsumo(0, _codigo, consumoEsperado, _consumoReal);
+            if (aud.consumoReal > (consumoEsperado * 120) / 100) {
+                emit AlertaConsumo(0, _codigo, consumoEsperado, aud.consumoReal);
             }
         }
 
-        if (uint8(_estadoFinal) != uint8(insumo.estadoReportadoF2)) {
-            // Guardar discrepancia si el estado final no coincide con lo reportado por el operador
-            emit DiscrepanciaRegistrada(0, _codigo, _motivoDiscrepancia); // Usamos 0 si es auditoría general
+        if (uint8(aud.estadoPropuesto) != uint8(insumo.estadoReportadoF2)) {
+            emit DiscrepanciaRegistrada(0, _codigo, aud.motivo);
         }
 
-        insumo.estado = _estadoFinal;
+        insumo.estado = aud.estadoPropuesto;
+        address operadorSaliente = insumo.custodioActual;
         insumo.custodioActual = address(0);
         insumo.inicioUso = 0;
         insumo.ultimoMantenimiento = block.timestamp;
+        
+        // Limpiamos auditoria
+        delete auditoriasPendientes[_codigo];
 
-        emit InsumoRetornado(_codigo, _estadoFinal);
+        // Paso 3.19: Registro de hito de firma para historial del brigadista
+        uint256 eventoID = despliegueActual[msg.sender];
+        if (eventoID != 0) {
+            string memory detalleFirma = string.concat("Acta de Devolucion Firmada: ", inventario[_codigo].descripcion);
+            bitacoraEvento[eventoID].push(LogOperativo({
+                eventoID: eventoID,
+                codigoInsumo: _codigo,
+                operador: msg.sender,
+                timestamp: block.timestamp,
+                detalles: detalleFirma,
+                esDiscrepancia: false
+            }));
+            emit HitoRegistrado(eventoID, _codigo, msg.sender, detalleFirma);
+        }
+
+        // Liberar brigadista (Fase 3.19)
+        if (contadorRecursos[operadorSaliente] > 0) {
+            contadorRecursos[operadorSaliente]--;
+            if (contadorRecursos[operadorSaliente] == 0) {
+                despliegueActual[operadorSaliente] = 0;
+            }
+        }
+
+        emit InsumoRetornado(_codigo, aud.estadoPropuesto);
     }
+
+    // Deprecamos la funcion anterior de retorno directo
+    function retornarInsumo(bytes32, EstadoInsumo, uint256, string memory) external pure {
+        revert("Use el flujo de Handshake: registrarAuditoria + firmarDeslinde");
+    }
+
 
     // --- Funciones de Vista ---
 

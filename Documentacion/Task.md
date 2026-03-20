@@ -30,12 +30,19 @@
     - [x] Implementar botón de descarga de plantilla CSV
     - [x] Configurar visualización de logs de Anvil y Frontend en tmux
     - [x] **Subir a repositorios**
-- [/] Fase 5: Panel de Control FireOps y Trazabilidad
+- [x] Refactorizar jerarquía de roles en `App.jsx` (Admin > Base Operativa > Jefe de Escena)
+- [x] Restaurar elementos visuales en `BaseOperativaDashboard.jsx` (Badge, Listado de Personal)
+- [x] Integrar Tablero de Logística/Auditoría en `BaseOperativaDashboard.jsx`
+- [x] Limpiar código redundante y corregir errores de sintaxis en `App.jsx`
+- [x] Verificar comunicación de props y funcionamiento de retornos/historial
+- [x] Fase 5: Panel de Control FireOps y Trazabilidad
     - [x] Integrar botón "Panel de Control" en interfaz Web3
     - [x] Adaptar FireOps para lectura de hitos y escritura de pines
     - [x] **Trazabilidad de Activos**: Implementar historial basado en logs blockchain.
     - [x] **Identificación por Nombres**: Resolución de direcciones a personal registrado.
     - [x] **Exportación PDF**: Generación de reportes de incidente e historial de activos.
+    - [x] **Exclusividad de Personal**: Control de despliegue único por brigadista (Blockchain & UI).
+    - [x] **Gestión Dinámica de Riesgo**: Botón de actualización de criticidad (Actualización de nivel de incendio).
     - [ ] **Subir a repositorios (Pre-Multirol)**
 - [ ] Fase 6: Ecosistema Multirol y Gestión Administrativa
     - [ ] **Dashboard de Brigadistas**: Interfaz móvil para reporte de hitos y GPS.

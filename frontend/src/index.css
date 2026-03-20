@@ -243,40 +243,66 @@ p {
   line-height: 1.6;
 }
 
-/* Banners y Badges */
+/* Banners y Badges (Convertidos a Toasts) */
+.toast-container {
+  position: fixed;
+  top: 1.5rem;
+  right: 1.5rem;
+  z-index: 999999; /* Por encima de todo, incluyendo modales */
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  pointer-events: none;
+}
+
 .status-banner {
+  pointer-events: auto;
+  min-width: 320px;
+  max-width: 450px;
   padding: 1rem 1.5rem;
-  border-radius: 8px;
-  margin-bottom: 2rem;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   gap: 1rem;
-  font-weight: 500;
-  animation: slideIn 0.3s ease-out;
+  font-weight: 600;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  animation: toastSlideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  border-left: 5px solid transparent;
+}
+
+@keyframes toastSlideIn {
+  from { opacity: 0; transform: translateX(50px) scale(0.9); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
 }
 
 .status-banner.success {
-  background: rgba(0, 255, 106, 0.1);
-  border: 1px solid rgba(0, 255, 106, 0.3);
-  color: #00ff6a;
+  background: rgba(0, 255, 106, 0.15);
+  border: 1px solid rgba(0, 255, 106, 0.2);
+  border-left: 5px solid #00ff6a;
+  color: #eeffee;
 }
 
 .status-banner.error {
-  background: rgba(255, 50, 50, 0.1);
-  border: 1px solid rgba(255, 50, 50, 0.3);
-  color: #ff3232;
+  background: rgba(255, 50, 50, 0.15);
+  border: 1px solid rgba(255, 50, 50, 0.2);
+  border-left: 5px solid #ff3232;
+  color: #ffeeee;
 }
 
 .status-banner.warning {
-  background: rgba(255, 170, 0, 0.1);
-  border: 1px solid rgba(255, 170, 0, 0.3);
-  color: #ffaa00;
+  background: rgba(255, 170, 0, 0.15);
+  border: 1px solid rgba(255, 170, 0, 0.2);
+  border-left: 5px solid #ffaa00;
+  color: #fff9ee;
 }
 
 .status-banner.info {
-  background: rgba(0, 242, 255, 0.1);
-  border: 1px solid rgba(0, 242, 255, 0.3);
-  color: #00f2ff;
+  background: rgba(0, 242, 255, 0.15);
+  border: 1px solid rgba(0, 242, 255, 0.2);
+  border-left: 5px solid #00f2ff;
+  color: #eeffff;
 }
 
 .badge-role {
@@ -435,4 +461,41 @@ p {
   font-weight: bold !important;
   font-size: 10px !important;
   text-transform: uppercase;
+}
+
+/* Indicadores de Riesgo Dinámicos */
+.status-pill {
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  color: #fff;
+  letter-spacing: 0.5px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.risk-1 { background: #16a34a; border-color: #059669; } /* Bajo - Verde */
+.risk-2 { background: #ca8a04; border-color: #b45309; } /* Moderado - Mostaza */
+.risk-3 { background: #ea580c; border-color: #9a3412; } /* Alto - Naranja */
+.risk-4 { background: #dc2626; border-color: #991b1b; } /* Muy Alto - Rojo */
+.risk-5 { background: #991b1b; border-color: #7f1d1d; box-shadow: 0 0 10px rgba(153, 27, 27, 0.5); } /* Extremo - Rojo Oscuro Glistening */
+.risk-workshop { background: #2563eb; border-color: #1d4ed8; } /* Taller - Azul */
+
+/* Modales Genéricos y V360 */
+.modal-overlay, .v360-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 40000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(5px);
+}
+
+.modal-content, .v360-modal-content {
+  animation: modalPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes modalPop {
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
 }

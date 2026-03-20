@@ -4,6 +4,12 @@ import Papa from 'papaparse'
 import './index.css'
 import trazabilidadAbi from './contracts/TrazabilidadLogistica.json'
 import TacticalPanel from './TacticalPanel'
+import BrigadistaDashboard from './BrigadistaDashboard'
+import AdminDashboard from './AdminDashboard'
+import BaseOperativaDashboard from './BaseOperativaDashboard'
+import PersonnelTable from './components/PersonnelTable'
+import AssetTable from './components/AssetTable'
+import AuditorDashboard from './AuditorDashboard'
 import { jsPDF } from 'jspdf'
 
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS
@@ -40,6 +46,8 @@ function App() {
   const [account, setAccount] = useState(null)
   const [isBaseOperativa, setIsBaseOperativa] = useState(false)
   const [isJefeEscena, setIsJefeEscena] = useState(false)
+  const [isAuditor, setIsAuditor] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [contractInstance, setContractInstance] = useState(null)
   const [inventory, setInventory] = useState([])
   const [incidents, setIncidents] = useState([])
@@ -54,7 +62,7 @@ function App() {
   const [runtimeError, setRuntimeError] = useState(null)
   const [loadAudit, setLoadAudit] = useState(null)
   const [selectedAssignmentIncident, setSelectedAssignmentIncident] = useState(null)
-  const [selectedResource, setSelectedResource] = useState('')
+  const [selectedResources, setSelectedResources] = useState([])
   const [selectedBrigadista, setSelectedBrigadista] = useState('')
   const [personnel, setPersonnel] = useState([])
   const [newPerson, setNewPerson] = useState({ address: '', name: '', specialty: '', role: 2 })
@@ -64,28 +72,34 @@ function App() {
   const [showV360Modal, setShowV360Modal] = useState(false)
   const [selectedV360Incident, setSelectedV360Incident] = useState(null)
   const [v360Logs, setV360Logs] = useState([])
-  const [expandedPersonnel, setExpandedPersonnel] = useState(new Set())
   const [showHistoryModal, setShowHistoryModal] = useState(false)
   const [historyData, setHistoryData] = useState({ item: null, logs: [] })
+  const [showRiskModalApp, setShowRiskModalApp] = useState(false)
+  const [selectedRiskIncident, setSelectedRiskIncident] = useState(null)
+  const [showReturnModal, setShowReturnModal] = useState(false)
+  const [selectedReturnItem, setSelectedReturnItem] = useState(null)
+  const [returnForm, setReturnForm] = useState({ estadoFinal: 0, consumoReal: 0, motivoDiscrepancia: '' })
   const fileInputRef = useRef(null)
 
-  const togglePersonExpansion = (address) => {
-    setExpandedPersonnel(prev => {
-      const next = new Set(prev)
-      if (next.has(address)) next.delete(address)
-      else next.add(address)
-      return next
-    })
-  }
 
   // Autolimpiar filtro y selecciones al abrir el modal de asignación
   useEffect(() => {
     if (selectedAssignmentIncident) {
       setAssignmentSearchTerm('')
-      setSelectedResource('')
+      setSelectedResources([])
       setSelectedBrigadista('')
     }
   }, [selectedAssignmentIncident])
+
+  // Autolimpiar notificaciones (Toasts)
+  useEffect(() => {
+    if (status.message) {
+      const timer = setTimeout(() => {
+        setStatus({ type: '', message: '' });
+      }, 6000); // 6 segundos de visibilidad
+      return () => clearTimeout(timer);
+    }
+  }, [status.message]);
 
   useEffect(() => {
     const fetchV360Logs = async () => {
@@ -111,6 +125,7 @@ function App() {
               timestamp: Number(l.timestamp),
               detalles: details,
               operador: l.operador,
+              codigoInsumo: l.codigoInsumo, // Incluimos el hash del insumo para resolución de nombres
               type
             }
           })
@@ -124,6 +139,67 @@ function App() {
     }
     fetchV360Logs()
   }, [showV360Modal, selectedV360Incident, contractInstance])
+
+  // Redirección automática si es Brigadista y no tiene otros roles (Top-level Hook)
+  useEffect(() => {
+    if (account && !loading && !isBaseOperativa && !isJefeEscena && !isAuditor && !isAdmin && personnel.length > 0) {
+      const isOperador = personnel.some(p => p.address && p.address.toLowerCase() === account.toLowerCase());
+      if (isOperador && currentView !== 'field') {
+        setCurrentView('field');
+      }
+    }
+  }, [account, isBaseOperativa, isJefeEscena, isAuditor, isAdmin, loading, personnel, currentView])
+
+  const openReturnModal = (item) => {
+    if (item.estado === 1) {
+      return setStatus({ 
+        type: 'warning', 
+        message: `Handshake Pendiente: El equipo ${item.serialId} aún no ha sido marcado como "ENTREGADO" por el brigadista. Solicita al operador que inicie el retorno desde su Interfaz de Campo.` 
+      });
+    }
+    setSelectedReturnItem(item);
+    setReturnForm({ estadoFinal: 0, consumoReal: 0, motivoDiscrepancia: '' });
+    setShowReturnModal(true);
+    setStatus({ type: 'info', message: 'Abriendo acta de recepción física...' });
+  };
+
+  const ejecutarRetorno = async () => {
+    if (!selectedReturnItem || !contractInstance) return;
+    
+    // Validación de seguridad adicional pre-transacción
+    if (selectedReturnItem.estado !== 4) {
+      return setStatus({ 
+        type: 'error', 
+        message: 'Protocolo bloqueado: No se puede registrar la auditoría si el equipo no está en estado "EN RETORNO".' 
+      });
+    }
+
+    setLoading(true);
+    setStatus({ type: 'info', message: 'Registrando auditoría en Blockchain...' });
+    try {
+      const tx = await contractInstance.registrarAuditoria(
+        selectedReturnItem.hash,
+        returnForm.estadoFinal,
+        BigInt(returnForm.consumoReal),
+        returnForm.motivoDiscrepancia
+      );
+      await tx.wait();
+      setStatus({ type: 'success', message: 'Auditoría registrada exitosamente.' });
+      setShowReturnModal(false);
+      await hardRefresh();
+    } catch (error) {
+      console.error(error);
+      // Extraer mensaje de error personalizado si existe en el revert
+      const errorMsg = error.reason || error.message;
+      const friendlyMsg = errorMsg.includes("No esta en retorno") 
+        ? "Error: El brigadista aún no ha iniciado el proceso de entrega técnica en la Blockchain."
+        : `Error en auditoría: ${errorMsg}`;
+      
+      setStatus({ type: 'error', message: friendlyMsg });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchAssetHistory = async (item) => {
     if (!contractInstance) return;
@@ -160,8 +236,8 @@ function App() {
           timestamp: 0,
           blockNumber: log.blockNumber,
           txHash: log.transactionHash,
-          details: log.args[2],
-          operador: '---'
+          details: log.args.detalles || log.args[3] || 'Sin detalles',
+          operador: log.args.operador || log.args[2] || '---'
         });
       });
 
@@ -176,13 +252,21 @@ function App() {
         });
       });
 
-      // Obtener timestamps de los bloques para una línea de tiempo real
+      // Obtener timestamps y remitentes para una línea de tiempo real y precisa
       const detailedHistory = await Promise.all(history.map(async (h) => {
         try {
-          const block = await contractInstance.runner.provider.getBlock(h.blockNumber);
-          return { ...h, timestamp: block.timestamp };
+          const [block, tx] = await Promise.all([
+            contractInstance.runner.provider.getBlock(h.blockNumber),
+            h.operador === null ? contractInstance.runner.provider.getTransaction(h.txHash) : null
+          ]);
+          return {
+            ...h,
+            timestamp: block.timestamp,
+            operador: h.operador === null ? tx.from : h.operador
+          };
         } catch (e) {
-          return { ...h, timestamp: Math.floor(Date.now() / 1000) };
+          console.error("Error enriqueciendo log:", e);
+          return { ...h, timestamp: Math.floor(Date.now() / 1000), operador: h.operador || '---' };
         }
       }));
 
@@ -215,21 +299,21 @@ function App() {
     let yPos = 50;
     logs.forEach((log, i) => {
       if (yPos > 270) { doc.addPage(); yPos = 20; }
-      
+
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
       const typeStr = log.type === 'asignacion' ? "ASIGNACION" : log.type === 'retorno' ? "RETORNO" : "HITO";
       doc.text(`${formatTime(log.timestamp).replace('📅', '')} - ${typeStr}`, 20, yPos);
       yPos += 5;
-      
+
       doc.setFont("helvetica", "normal");
       doc.text(`Detalle: ${stripEmojis(log.details)}`, 25, yPos);
       yPos += 5;
-      
+
       const opName = log.operador === 'BASE' ? 'BASE OPERATIVA' : (personnel.find(p => p.address.toLowerCase() === log.operador?.toLowerCase())?.name || log.operador);
       doc.text(`Responsable: ${stripEmojis(opName)}`, 25, yPos);
       yPos += 5;
-      
+
       doc.setFontSize(8);
       doc.setTextColor(150);
       doc.text(`TxHash: ${log.txHash}`, 25, yPos);
@@ -240,7 +324,7 @@ function App() {
     doc.save(`Historial_${item.serialId}.pdf`);
   };
 
-  const generarReportePDF = (customIncident, customLogs) => {
+  const generarReportePDF = (customIncident, customLogs, historicAssignments) => {
     const incident = customIncident || selectedV360Incident;
     const logs = customLogs || v360Logs;
     if (!incident) return;
@@ -266,16 +350,25 @@ function App() {
     doc.setFontSize(10);
     doc.text(`Estado: ${incident.activo ? "ACTIVO" : "CERRADO"}`, 25, 55);
     doc.text(`Fecha Inicio: ${formatTime(incident.timestamp).replace('📅', '').trim()}`, 25, 62);
-    doc.text(`Coordenadas: ${stripEmojis(incident.coords) || "N/A"}`, 25, 69);
+    if (!incident.activo && incident.timestampFin > 0) {
+      doc.text(`Fecha Cierre: ${formatTime(incident.timestampFin).replace('📅', '').trim()}`, 25, 69);
+    }
+    doc.text(`Coordenadas: ${stripEmojis(incident.coords) || "N/A"}`, 25, incident.activo ? 69 : 76);
 
     // Personnel & Resources
-    let yPos = 85;
+    let yPos = incident.activo ? 85 : 92;
     doc.setFontSize(12);
     doc.text("PERSONAL Y RECURSOS ASIGNADOS", 20, yPos);
     yPos += 10;
     doc.setFontSize(9);
 
-    const assignedPersonnel = personnel.filter(p => p.incidente === `ID-INC${eventId}`);
+    const assignedPersonnel = personnel.filter(p => {
+      if (historicAssignments) {
+        return historicAssignments[p.address.toLowerCase()];
+      }
+      return p.incidente === `ID-INC${eventId}`;
+    });
+
     if (assignedPersonnel.length === 0) {
       doc.text("No hay personal asignado oficialmente.", 25, yPos);
       yPos += 7;
@@ -287,8 +380,11 @@ function App() {
         yPos += 6;
         doc.setFont("helvetica", "normal");
 
-        const items = inventory.filter(item => item.custodio?.toLowerCase() === p.address?.toLowerCase() && item.estado === 1);
-        if (items.length > 0) {
+        const items = historicAssignments ? 
+          historicAssignments[p.address.toLowerCase()] :
+          inventory.filter(item => item.custodio?.toLowerCase() === p.address?.toLowerCase() && item.estado === 1);
+
+        if (items && items.length > 0) {
           items.forEach(item => {
             doc.text(`  • ${stripEmojis(item.descripcion)} (${item.serialId})`, 30, yPos);
             yPos += 5;
@@ -315,14 +411,109 @@ function App() {
       logs.forEach(log => {
         if (yPos > 270) { doc.addPage(); yPos = 20; }
         const time = new Date(log.timestamp * 1000).toLocaleString();
+        const opName = personnel.find(p => p.address.toLowerCase() === log.operador.toLowerCase())?.name || log.operador.substring(0, 10);
+
+        doc.setFont("helvetica", "bold");
         doc.setTextColor(0, 150, 255);
-        doc.text(`${time} | Op: ${log.operador.substring(0, 10)}...`, 25, yPos);
-        yPos += 4;
+        doc.text(`${time} | Op: ${stripEmojis(opName)}`, 25, yPos);
+        yPos += 5;
+
+        doc.setFont("helvetica", "normal");
         doc.setTextColor(0);
 
-        const splitDetails = doc.splitTextToSize(stripEmojis(log.detalles), 160);
-        doc.text(splitDetails, 25, yPos);
-        yPos += (splitDetails.length * 4) + 2;
+        let detailsText = log.detalles;
+        try {
+          const parsed = JSON.parse(log.detalles);
+          if (parsed.type === 'pin') {
+            const coordsStr = parsed.latlng ? `[${parsed.latlng.lat.toFixed(4)}, ${parsed.latlng.lng.toFixed(4)}]` : '';
+            detailsText = `📍 ${parsed.fullLabel || parsed.label} (${parsed.pinType.toUpperCase()}) ${coordsStr}`;
+          } else if (parsed.text) {
+            detailsText = parsed.text;
+          }
+        } catch (e) { }
+
+        // Si hay un recurso asociado, lo añadimos al inicio
+        let resourcePrefix = "";
+        if (log.codigoInsumo && log.codigoInsumo !== ethers.ZeroHash) {
+          const item = inventory.find(i => i.hash === log.codigoInsumo);
+          if (item) {
+            resourcePrefix = `[RECURSO: ${item.serialId} - ${item.descripcion}] `;
+          }
+        }
+
+        // Lógica de Negritas Dinámicas: Título vs Contenido
+        let titlePortion = "";
+        let bodyPortion = detailsText;
+        if (detailsText.includes(': ')) {
+          const parts = detailsText.split(': ');
+          titlePortion = parts[0] + ': ';
+          bodyPortion = parts.slice(1).join(': ');
+        }
+
+        // Renderizado Segmentado con Salto de Línea para Recursos
+        if (yPos > 275) { doc.addPage(); yPos = 20; }
+
+        if (resourcePrefix) {
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(0);
+          doc.text(stripEmojis(resourcePrefix.trim()), 25, yPos);
+          yPos += 6;
+        }
+
+        // Dividir el resto del texto (título + cuerpo)
+        let fullContent = titlePortion + bodyPortion;
+        let isCriticalStatus = fullContent.includes('DAÑO CRÍTICO');
+        let isLostStatus = fullContent.includes('PERDIDO');
+        let isWarningStatus = fullContent.includes('DAÑO MENOR');
+        
+        // Si contiene la etiqueta de estado, la ponemos en negrita y resaltada
+        const matchesStatus = fullContent.match(/\[ESTADO: (.*?)\]/);
+        const statusLabel = matchesStatus ? matchesStatus[0] : "";
+        
+        const subLines = doc.splitTextToSize(stripEmojis(fullContent), 160);
+
+        subLines.forEach((line, idx) => {
+          if (yPos > 275) { doc.addPage(); yPos = 20; }
+          
+          if (statusLabel && line.includes(statusLabel)) {
+            doc.setFont("helvetica", "bold");
+            if (isLostStatus) doc.setTextColor(128, 0, 128); // Purple
+            else if (isCriticalStatus) doc.setTextColor(255, 0, 0); // Red
+            else if (isWarningStatus) doc.setTextColor(255, 140, 0); // Orange/Yellow
+            else doc.setTextColor(0, 150, 0); // Green
+            
+            doc.text(statusLabel, 25, yPos);
+            const statusWidth = doc.getTextWidth(statusLabel);
+            
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(0);
+            const remainingLine = line.replace(statusLabel, "");
+            doc.text(remainingLine, 25 + statusWidth, yPos);
+          } else if (idx === 0 && titlePortion) {
+            // En la primera línea del contenido, ponemos el título en negrita
+            doc.setFont("helvetica", "bold");
+            doc.text(stripEmojis(titlePortion), 25, yPos);
+            const titleWidth = doc.getTextWidth(stripEmojis(titlePortion));
+            doc.setFont("helvetica", "normal");
+            const remainingLine = line.replace(stripEmojis(titlePortion), "");
+            doc.text(remainingLine, 25 + titleWidth, yPos);
+          } else {
+            // Si es una alerta de sistema (empieza por 🚨 o ⚠️), la ponemos toda en negrita
+            const isSystemAlert = line.includes("🚨") || line.includes("⚠️");
+            doc.setFont("helvetica", isSystemAlert ? "bold" : "normal");
+            
+            // Solo coloreamos de rojo/morado si es una alerta de sistema crítica, no toda la descripción
+            if (isSystemAlert && isLostStatus) doc.setTextColor(128, 0, 128);
+            else if (isSystemAlert && isCriticalStatus) doc.setTextColor(200, 0, 0);
+            else doc.setTextColor(0);
+
+            doc.text(line, 25, yPos);
+            doc.setTextColor(0);
+          }
+          yPos += 5;
+        });
+
+        yPos += 3; // Espacio entre hitos de la bitácora
       });
     }
 
@@ -337,44 +528,142 @@ function App() {
     document.body.setAttribute('data-skin', skin)
   }, [skin])
 
-  const connectWallet = async () => {
+  const connectWallet = async (requestedAddress = null, forceNewPermission = false) => {
     if (!window.ethereum) {
       return setStatus({ type: 'error', message: 'MetaMask no detectado.' })
     }
     setLoading(true)
+    // Resetear estados de rol antiguos para evitar persistencia visual durante la transición
+    setIsAdmin(false)
+    setIsAuditor(false)
+    setIsBaseOperativa(false)
+    setIsJefeEscena(false)
+    setCurrentView('inventory')
+
     try {
-      // Solicitar explícitamente cuentas, crucial para navegadores móviles incrustados (ej. MetaMask in-app browser)
-      await window.ethereum.request({ method: 'eth_requestAccounts' })
-      
+      // Si se solicita forzar permisos (útil para cuando cambian a una cuenta no autorizada)
+      if (forceNewPermission) {
+        await window.ethereum.request({
+          method: 'wallet_requestPermissions',
+          params: [{ eth_accounts: {} }]
+        });
+      }
+
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
+      if (accounts.length === 0) throw new Error("No hay cuentas autorizadas");
+
+      console.log("Cuentas detectadas por MetaMask:", accounts);
+
+      // Prioridad: 1. Dirección solicitada por evento, 2. Primera cuenta activa de MetaMask
+      const rawAddress = requestedAddress || accounts[0];
+      if (!rawAddress) throw new Error("No se pudo determinar la dirección de la billetera");
+
+      const address = String(rawAddress).trim().toLowerCase();
+
       const provider = new ethers.BrowserProvider(window.ethereum)
-      const signer = await provider.getSigner()
-      const address = await signer.getAddress()
-      setAccount(address)
+      const signer = await provider.getSigner(address)
+      const sanitizedAddress = await signer.getAddress()
+
+      setAccount(sanitizedAddress)
       const contract = new ethers.Contract(CONTRACT_ADDRESS, trazabilidadAbi.abi, signer)
       setContractInstance(contract)
+
       const roleBase = await contract.BASE_OPERATIVA_ROLE()
       const roleJefe = await contract.JEFE_ESCENA_ROLE()
-      const hasRoleBase = await contract.hasRole(roleBase, address)
-      const hasRoleJefe = await contract.hasRole(roleJefe, address)
+      const roleAuditor = await contract.AUDITOR_ROLE()
+      const hasRoleBase = await contract.hasRole(roleBase, sanitizedAddress)
+      const hasRoleJefe = await contract.hasRole(roleJefe, sanitizedAddress)
+      const hasRoleAuditor = await contract.hasRole(roleAuditor, sanitizedAddress)
+
+      const adminRole = "0x0000000000000000000000000000000000000000000000000000000000000000"
+      const hasRoleAdmin = await contract.hasRole(adminRole, sanitizedAddress)
+
       setIsBaseOperativa(hasRoleBase)
       setIsJefeEscena(hasRoleJefe)
-      if (hasRoleBase || hasRoleJefe) {
-        const mapping = await fetchIncidents(contract)
-        await fetchInventory(contract, mapping)
-        await fetchPersonnel(contract, mapping)
-      }
-      if (!hasRoleBase && !hasRoleJefe) {
-        setStatus({ type: 'warning', message: 'Conectado. Sin roles operativos asignados.' })
+      setIsAuditor(hasRoleAuditor)
+      setIsAdmin(hasRoleAdmin)
+
+      const mapping = await fetchIncidents(contract)
+      await fetchInventory(contract, mapping)
+      await fetchPersonnel(contract, mapping)
+
+      if (!hasRoleBase && !hasRoleJefe && !hasRoleAuditor) {
+        setStatus({ type: 'warning', message: `Conectado como Campo: ${sanitizedAddress.substring(0, 10).toUpperCase()}...` })
       } else {
-        setStatus({ type: 'success', message: 'Sistema sincronizado. Identidad verificada.' })
+        const roleName = hasRoleAdmin ? "Admin" : hasRoleAuditor ? "Auditor" : hasRoleBase ? "Base" : "Jefe";
+        setStatus({ type: 'success', message: `Identidad [${roleName}] Sincronizada: ${sanitizedAddress.substring(0, 10).toUpperCase()}...` })
       }
     } catch (error) {
-      console.error(error)
-      setStatus({ type: 'error', message: `Error al conectar: ${error.message || 'Billetera rechazada'}` })
+      console.error("Fallo de conexión:", error)
+      setStatus({ type: 'error', message: `Fallo de Sincronización: ${error.message}` })
     } finally {
       setLoading(false)
     }
   }
+
+  // Listener para cambios de cuenta y red en MetaMask (Ubicado aquí para acceder a connectWallet)
+  useEffect(() => {
+    if (window.ethereum) {
+      const handleAccountsChanged = (accounts) => {
+        console.log("Cambio de cuenta detectado en MetaMask:", accounts);
+        if (accounts.length > 0) {
+          // Re-conectar usando la NUEVA dirección activa informada por MetaMask
+          connectWallet(accounts[0]);
+        } else {
+          setAccount(null);
+          setContractInstance(null);
+          setIsBaseOperativa(false);
+          setIsJefeEscena(false);
+          setIsAuditor(false);
+          setIsAdmin(false);
+          setCurrentView('inventory');
+          setStatus({ type: 'warning', message: 'Billetera desconectada.' });
+        }
+      };
+
+      const handleChainChanged = () => {
+        console.log("Cambio de red detectado. Recargando...");
+        window.location.reload();
+      };
+
+      window.ethereum.on('accountsChanged', handleAccountsChanged);
+      window.ethereum.on('chainChanged', handleChainChanged);
+
+      return () => {
+        if (window.ethereum.removeListener) {
+          window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+          window.ethereum.removeListener('chainChanged', handleChainChanged);
+        }
+      };
+    }
+  }, []); // Solo al montar
+
+  // Sincronización Real-Time con Blockchain (Multi-dispositivo)
+  useEffect(() => {
+    if (!contractInstance) return;
+
+    const handleSync = async () => {
+      console.log("Evento detectado en Blockchain. Ejecutando refresco táctico...");
+      await hardRefresh();
+    };
+
+    // Suscribir a eventos críticos que cambian el estado global
+    contractInstance.on("InsumoAsignado", handleSync);
+    contractInstance.on("IncendioIniciado", handleSync);
+    contractInstance.on("IncendioCerrado", handleSync);
+    contractInstance.on("InsumoRetornado", handleSync);
+    contractInstance.on("DiscrepanciaRegistrada", handleSync);
+    contractInstance.on("RiesgoActualizado", handleSync);
+
+    return () => {
+      contractInstance.off("InsumoAsignado", handleSync);
+      contractInstance.off("IncendioIniciado", handleSync);
+      contractInstance.off("IncendioCerrado", handleSync);
+      contractInstance.off("InsumoRetornado", handleSync);
+      contractInstance.off("DiscrepanciaRegistrada", handleSync);
+      contractInstance.off("RiesgoActualizado", handleSync);
+    };
+  }, [contractInstance]);
 
   const handleUploadClick = () => {
     if (!account) return connectWallet()
@@ -447,6 +736,23 @@ function App() {
     })
   }
 
+  const actualizarRiesgoApp = async (nuevoRiesgo) => {
+    if (!selectedRiskIncident) return
+    setLoading(true)
+    try {
+      const tx = await contractInstance.actualizarRiesgoIncendio(BigInt(selectedRiskIncident.id), BigInt(nuevoRiesgo))
+      await tx.wait()
+      setStatus({ type: 'success', message: `Riesgo de INC${selectedRiskIncident.id.padStart(3, '0')} actualizado a nivel ${nuevoRiesgo}.` })
+      setShowRiskModalApp(false)
+      await hardRefresh()
+    } catch (error) {
+      console.error(error)
+      setStatus({ type: 'error', message: 'Error al actualizar riesgo.' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const abrirIncidente = async () => {
     if (!fireCoords) return setStatus({ type: 'error', message: 'Coordenadas requeridas.' })
     setLoading(true)
@@ -483,21 +789,22 @@ function App() {
           activo: fire.activo
         })
 
+        // Obtener eventos de asignación para este incidente (Activo o Cerrado)
+        const assignmentFilter = contract.filters.InsumoAsignado(BigInt(i))
+        const assignmentEvents = await contract.queryFilter(assignmentFilter, 0)
+
+        assignmentEvents.forEach(evt => {
+          const insumoHash = evt.args[1]
+          const brigadistaAddr = evt.args[2]
+          // Solo mapeamos si no hay un mapeo previo más reciente (recorremos cronológicamente)
+          mapping[insumoHash] = { id: i.toString(), activo: fire.activo }
+          mapping[brigadistaAddr.toLowerCase()] = { id: i.toString(), activo: fire.activo }
+        })
+
         if (fire.activo) {
-          // Obtener eventos de asignación para este incidente específico
-          const assignmentFilter = contract.filters.InsumoAsignado(BigInt(i))
-          const assignmentEvents = await contract.queryFilter(assignmentFilter, 0)
-
-          assignmentEvents.forEach(evt => {
-            const insumoHash = evt.args[1]
-            const brigadistaAddr = evt.args[2]
-            mapping[insumoHash] = i.toString()
-            mapping[brigadistaAddr.toLowerCase()] = i.toString()
-          })
-
-          // También mapear al Jefe de Escena del incidente
+          // También mapear al Jefe de Escena del incidente (si está activo para el panel táctico)
           if (fire.jefeDeEscena !== ethers.ZeroAddress) {
-            mapping[fire.jefeDeEscena.toLowerCase()] = i.toString()
+            mapping[fire.jefeDeEscena.toLowerCase()] = { id: i.toString(), activo: true }
           }
         }
       }
@@ -519,8 +826,8 @@ function App() {
         const p = await contract.brigadistas(addr)
 
         // Determinar estado e incidente
-        const assignedIncident = incidentMap[addr.toLowerCase()]
-        const estadoLabel = assignedIncident ? 'EN INCIDENTE' : (p.estaActivo ? 'DISPONIBLE' : 'INACTIVO')
+        const assignmentInfo = incidentMap[addr.toLowerCase()]
+        const estadoLabel = (assignmentInfo && assignmentInfo.activo) ? 'EN INCIDENTE' : (p.estaActivo ? 'DISPONIBLE' : 'INACTIVO')
 
         return {
           address: addr,
@@ -528,7 +835,7 @@ function App() {
           specialty: p.especialidad,
           isJefe,
           estado: estadoLabel,
-          incidente: assignedIncident ? `ID-INC${assignedIncident.padStart(3, '0')}` : '---'
+          incidente: assignmentInfo ? `ID-INC${assignmentInfo.id.padStart(3, '0')}` : '---'
         }
       }))
       setPersonnel(list.filter(p => p !== null))
@@ -543,7 +850,7 @@ function App() {
       const addressLimpio = newPerson.address.trim()
       const nombreLimpio = newPerson.name.trim()
       const especialidadLimpia = newPerson.specialty.trim()
-      
+
       const tx = await contractInstance.registrarPersonal(addressLimpio, nombreLimpio, especialidadLimpia, roleHash)
       await tx.wait()
       setStatus({ type: 'success', message: `Personal ${nombreLimpio} registrado.` })
@@ -558,18 +865,45 @@ function App() {
   }
 
   const asignarInsumo = async () => {
-    if (!selectedAssignmentIncident || !selectedResource || !selectedBrigadista) return setStatus({ type: 'error', message: 'Seleccione recurso y brigadista.' })
+    if (!selectedAssignmentIncident || selectedResources.length === 0 || !selectedBrigadista) {
+      return setStatus({ type: 'error', message: 'Seleccione al menos un recurso y un brigadista.' })
+    }
+
     setLoading(true)
+    let errorCount = 0;
+
     try {
-      const tx = await contractInstance.asignarInsumo(selectedAssignmentIncident.id, selectedResource, selectedBrigadista)
-      await tx.wait()
-      setStatus({ type: 'success', message: 'Recurso asignado y vinculado en blockchain.' })
-      setSelectedAssignmentIncident(null)
-      setSelectedResource('')
-      setSelectedBrigadista('')
-      await hardRefresh()
-    } catch (error) { console.error(error); setStatus({ type: 'error', message: 'Error en asignación.' }) }
-    finally { setLoading(false) }
+      for (const resourceHash of selectedResources) {
+        const item = inventory.find(i => i.hash === resourceHash);
+        const itemName = item ? item.serialId : resourceHash;
+
+        setStatus({ type: 'info', message: `Firmando asignación de ${itemName}...` });
+
+        try {
+          const tx = await contractInstance.asignarInsumo(selectedAssignmentIncident.id, resourceHash, selectedBrigadista);
+          await tx.wait();
+        } catch (err) {
+          console.error(`Error asignando ${itemName}:`, err);
+          errorCount++;
+        }
+      }
+
+      if (errorCount === 0) {
+        setStatus({ type: 'success', message: `¡Operación exitosa! ${selectedResources.length} recursos asignados.` });
+        setSelectedAssignmentIncident(null);
+        setSelectedResources([]);
+        setSelectedBrigadista('');
+      } else {
+        setStatus({ type: 'error', message: `Completado con ${errorCount} errores. Revise el tablero.` });
+      }
+
+      await hardRefresh();
+    } catch (error) {
+      console.error(error);
+      setStatus({ type: 'error', message: 'Error general en la cadena de asignación.' });
+    } finally {
+      setLoading(false);
+    }
   }
 
   const fetchInventory = async (contract, incidentMap = {}) => {
@@ -585,16 +919,27 @@ function App() {
           serialId = parts[0]; finalDesc = parts[1]
         }
 
-        const assignedIncident = incidentMap[codigo]
+        const assignmentInfo = incidentMap[codigo]
+        const pendingAudit = await contract.auditoriasPendientes(codigo)
+
+        const estadoLabels = ["Disponible", "En Uso", "Taller", "Perdido", "En Retorno"]
 
         return {
           hash: codigo,
           serialId,
           descripcion: finalDesc,
           estado: Number(data.estado),
-          consumo: data.consumoNominal.toString(),
+          estadoLabel: estadoLabels[Number(data.estado)] || "Desconocido",
+          consumoNominal: Number(data.consumoNominal),
           custodio: data.custodioActual,
-          incidente: assignedIncident ? `ID-INC${assignedIncident.padStart(3, '0')}` : '---'
+          incidente: assignmentInfo ? `ID-INC${assignmentInfo.id.padStart(3, '0')}` : '---',
+          incidenteId: assignmentInfo ? assignmentInfo.id : null,
+          incidenteActivo: assignmentInfo ? assignmentInfo.activo : false,
+          auditoriaPendiente: pendingAudit.activa ? {
+            estadoPropuesto: Number(pendingAudit.estadoPropuesto),
+            consumoReal: pendingAudit.consumoReal.toString(),
+            motivo: pendingAudit.motivo
+          } : null
         }
       }))
       setInventory(items)
@@ -627,388 +972,313 @@ function App() {
             </select>
           </div>
           <div className="skin-dropdown-container">
-            <label className="skin-label">CONECTAR WALLET</label>
-            <button className={`btn ${account ? 'btn-outline' : ''}`} onClick={connectWallet} disabled={loading} style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <button className={`btn ${account ? 'btn-outline' : ''}`} onClick={() => connectWallet(null, true)} disabled={loading} style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               {loading ? <span className="spin">⏳</span> : <span>👛</span>}
-              {account ? `${account.substring(0, 6).toUpperCase()}...` : 'CONECTAR'}
+              {account ? `${account.substring(0, 10).toUpperCase()}...` : 'CONECTAR WALLET'}
             </button>
           </div>
         </div>
       </header>
 
-      {currentView === 'inventory' ? (
+      {/* RENDERIZADO PRINCIPAL AUTOMATIZADO - FLUJO ÚNICO */}
+      {!account ? (
         <main>
-          {status.message && (
-            <div className={`status-banner ${status.type}`}>
-              {status.type === 'success' && <span>✅</span>}
-              {status.type === 'error' && <span>❌</span>}
-              {status.type === 'warning' && <span>⚠️</span>}
-              {status.type === 'info' && <span className="spin">⏳</span>}
-              <span>{status.message}</span>
-            </div>
-          )}
-
-          {isBaseOperativa && (
-            <>
-              <div className="card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <h2>Centro de Gestión de Inventario</h2>
-                    <p style={{ color: 'var(--text-secondary)', marginBottom: '2.5rem', fontSize: '1.1rem', maxWidth: '600px' }}>
-                      Panel táctico para la logística de insumos críticos. Controle el flujo de recursos en tiempo real mediante registros inmutables.
-                    </p>
-                  </div>
-                  <div className="badge-role">🛡️ BASE OPERATIVA</div>
-                </div>
-                <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-                  <a href="/plantilla_inventario.csv" className="btn btn-secondary" download style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-                    📥 Descargar Plantilla CSV
-                  </a>
-                  <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept=".csv" onChange={processCsv} />
-                  <button className="btn" onClick={handleUploadClick} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-                    {loading ? <span className="spin">⏳</span> : <span>📤</span>}
-                    Subir Inventario
-                  </button>
-                </div>
-              </div>
-
-            </>
-          )}
-
-          {isJefeEscena && (
-            <>
-              <div className="card" style={{ borderColor: 'var(--accent-color)', borderStyle: 'dashed' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <h2>OPERACIONES DE CAMPO (JEFE DE ESCENA)</h2>
-                    <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>
-                      Apertura y seguimiento de incidentes activos. Genere bitácoras de combate directamente en la red.
-                    </p>
-                  </div>
-                  <div className="badge-role" style={{ background: 'rgba(255, 111, 0, 0.2)' }}>👨‍🚒 JEFE DE ESCENA</div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', alignItems: 'flex-end' }}>
-                  <div>
-                    <label className="skin-label" style={{ display: 'block', marginBottom: '0.5rem' }}>COORDENADAS (LAT, LON)</label>
-                    <input type="text" className="skin-select" style={{ width: '100%', padding: '0.8rem', backgroundImage: 'none' }} placeholder="-1.023, -78.456" value={fireCoords} onChange={(e) => setFireCoords(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="skin-label" style={{ display: 'block', marginBottom: '0.5rem' }}>NIVEL DE RIESGO</label>
-                    <select className="skin-select" style={{ width: '100%', padding: '0.8rem' }} value={riskLevel} onChange={(e) => setRiskLevel(Number(e.target.value))}>
-                      <option value="1">1 - Bajo</option>
-                      <option value="2">2 - Moderado</option>
-                      <option value="3">3 - Alto</option>
-                      <option value="4">4 - Crítico</option>
-                      <option value="5">5 - Catastrófico</option>
-                    </select>
-                  </div>
-                  <button className="btn" onClick={abrirIncidente} disabled={loading} style={{ padding: '0.8rem' }}>
-                    {loading ? <span className="spin">⏳</span> : <span>🚀</span>} DESPLEGAR INCIDENTE
-                  </button>
-                </div>
-              </div>
-
-              {incidents.length > 0 && (
-                <div className="card">
-                  <h2>INCIDENTES EN TABLERO TÁCTICO</h2>
-                  <div style={{ display: 'grid', gap: '1rem' }}>
-                    {incidents.map((fire) => (
-                      <div key={fire.id} className="status-badge" style={{ justifyContent: 'space-between', padding: '1.2rem', background: 'var(--bg-primary)', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'center' }}>
-                            <span style={{ fontWeight: '800', color: 'var(--accent-color)' }}>ID-INC{fire.id.padStart(3, '0')}</span>
-                            <span style={{ margin: '0 1rem', color: '#666' }}>|</span>
-                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{formatTime(fire.timestamp)}</span>
-                            <span style={{ margin: '0 1rem', color: '#666' }}>|</span>
-                            <span style={{ color: fire.riesgo > 3 ? '#ff3232' : 'var(--text-secondary)' }}>⚠ Riesgo: {fire.riesgo}</span>
-                            {!fire.activo && (
-                              <>
-                                <span style={{ margin: '0 1rem', color: '#666' }}>|</span>
-                                <span style={{ background: 'rgba(255,100,100,0.1)', color: '#ff6464', padding: '0.1rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 'bold' }}>CERRADO</span>
-                              </>
-                            )}
-                          </div>
-                          <div>
-                            <span>📍 {fire.coords}</span>
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          {fire.activo && (
-                            <button className="btn btn-secondary" style={{ padding: '0.4rem 0.75rem', fontSize: '0.70rem', border: '1px solid var(--accent-color)' }} onClick={() => setSelectedAssignmentIncident(fire)}>🔗 ASIGNAR RECURSO</button>
-                          )}
-                          <button
-                            className="btn btn-secondary"
-                            style={{ padding: '0.4rem 0.75rem', fontSize: '0.70rem', border: '1px solid var(--accent-color)', opacity: fire.activo ? 1 : 0.5 }}
-                            onClick={(e) => { e.stopPropagation(); setSelectedV360Incident(fire); setShowV360Modal(true); }}
-                          >
-                            👁️ RESUMEN EVENTO
-                          </button>
-                          <button className="btn btn-secondary" style={{ padding: '0.4rem 0.75rem', fontSize: '0.70rem' }} onClick={() => { setSelectedIncident(fire); setCurrentView('tactical'); }}>🚀 {fire.activo ? 'PANEL DE CONTROL' : 'VER BITÁCORA'}</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          {(isBaseOperativa || isJefeEscena) && (
-            <div className="card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
-                <div>
-                  <h2>Gestión de Personal (Brigadistas)</h2>
-                  {isBaseOperativa && (
-                    <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
-                      Registro de nuevos operadores y jefes de escena para el despliegue táctico.
-                    </p>
-                  )}
-                </div>
-                <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <label style={{ fontSize: '0.7rem', color: '#666' }}>FILTRAR:</label>
-                    <select className="skin-select" style={{ padding: '0.3rem', fontSize: '0.7rem', width: 'auto' }} value={personnelFilter} onChange={(e) => setPersonnelFilter(e.target.value)}>
-                      <option value="all">TODOS</option>
-                      <option value="available">DISPONIBLES 🟢</option>
-                      <option value="assigned">EN INCIDENTE 🔴</option>
-                    </select>
-                  </div>
-                  <button className="btn btn-secondary" style={{ fontSize: '0.75rem', padding: '0.3rem 0.8rem' }} onClick={() => hardRefresh()}>🔄 ACTUALIZAR PERSONAL</button>
-                </div>
-              </div>
-              {isBaseOperativa && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-                  <input type="text" className="skin-select" style={{ backgroundImage: 'none', padding: '0.6rem' }} placeholder="Wallet Address (0x...)" value={newPerson.address} onChange={(e) => setNewPerson({ ...newPerson, address: e.target.value })} />
-                  <input type="text" className="skin-select" style={{ backgroundImage: 'none', padding: '0.6rem' }} placeholder="Nombre Completo" value={newPerson.name} onChange={(e) => setNewPerson({ ...newPerson, name: e.target.value })} />
-                  <input type="text" className="skin-select" style={{ backgroundImage: 'none', padding: '0.6rem' }} placeholder="Especialidad (Ej: Motobombista)" value={newPerson.specialty} onChange={(e) => setNewPerson({ ...newPerson, specialty: e.target.value })} />
-                  <select className="skin-select" style={{ padding: '0.6rem' }} value={newPerson.role} onChange={(e) => setNewPerson({ ...newPerson, role: Number(e.target.value) })}>
-                    <option value="2">Brigadista (Operador)</option>
-                    <option value="1">Jefe de Escena</option>
-                  </select>
-                  <button className="btn" onClick={registrarPersonal} disabled={loading}>{loading ? '...' : '➕ REGISTRAR'}</button>
-                </div>
-              )}
-              <div style={{ background: 'rgba(0,0,0,0.1)', padding: '1.2rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <table style={{ width: '100%', fontSize: '1rem' }}>
-                  <thead>
-                    <tr style={{ textAlign: 'left', borderBottom: '1px solid #333' }}>
-                      <th>NOMBRE</th>
-                      <th>ESPECIALIDAD</th>
-                      <th>DIRECCIÓN</th>
-                      <th>ESTADO</th>
-                      <th>INCIDENTE</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {personnel.length === 0 ? (
-                      <tr><td colSpan="4" style={{ padding: '1rem', textAlign: 'center', color: '#666' }}>No hay personal registrado aún.</td></tr>
-                    ) : (
-                      personnel
-                        .filter(p => {
-                          const isAssignedAsBrigadista = inventory.some(item => item.custodio?.toLowerCase() === p.address?.toLowerCase() && item.estado === 1);
-                          const isAssignedAsJefe = p.isJefe && incidents.some(fire => fire.jefe?.toLowerCase() === p.address?.toLowerCase());
-                          const isAssigned = isAssignedAsBrigadista || isAssignedAsJefe;
-                          if (personnelFilter === 'available') return !isAssigned;
-                          if (personnelFilter === 'assigned') return isAssigned;
-                          return true;
-                        })
-                        .map(p => {
-                          const isAssignedAsBrigadista = inventory.some(item => item.custodio?.toLowerCase() === p.address?.toLowerCase() && item.estado === 1);
-                          const isAssignedAsJefe = p.isJefe && incidents.some(fire => fire.jefe?.toLowerCase() === p.address?.toLowerCase());
-                          const isAssigned = isAssignedAsBrigadista || isAssignedAsJefe;
-                            return (
-                              <tr key={p.address} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                <td style={{ padding: '1rem 0', verticalAlign: 'top' }}>
-                                  <div style={{ fontWeight: 'bold', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1 }}>
-                                      {p.isJefe ? '👨‍🚒' : '👤'} {p.name}
-                                    </div>
-                                    {inventory.some(item => item.custodio?.toLowerCase() === p.address?.toLowerCase() && item.estado === 1) && (
-                                      <button 
-                                        className="btn-sq" 
-                                        style={{ 
-                                          width: '20px', 
-                                          height: '20px', 
-                                          display: 'flex', 
-                                          alignItems: 'center', 
-                                          justifyContent: 'center', 
-                                          padding: 0, 
-                                          fontSize: '0.9rem', 
-                                          border: '1px solid rgba(255,255,255,0.2)', 
-                                          background: 'rgba(255,255,255,0.05)', 
-                                          borderRadius: '4px', 
-                                          cursor: 'pointer', 
-                                          color: 'var(--accent-color)',
-                                          fontWeight: 'bold',
-                                          marginLeft: 'auto'
-                                        }}
-                                        onClick={() => togglePersonExpansion(p.address)}
-                                        title={expandedPersonnel.has(p.address) ? 'Colapsar' : 'Expandir'}
-                                      >
-                                        {expandedPersonnel.has(p.address) ? '−' : '+'}
-                                      </button>
-                                    )}
-                                  </div>
-                                  {expandedPersonnel.has(p.address) && (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', animation: 'fadeIn 0.2s ease' }}>
-                                      {inventory.filter(item => item.custodio?.toLowerCase() === p.address?.toLowerCase() && item.estado === 1).map(item => (
-                                        <div key={item.hash} style={{ 
-                                          fontSize: '0.7rem', 
-                                          color: '#bbb', 
-                                          background: 'rgba(255,255,255,0.03)', 
-                                          padding: '0.3rem 0.6rem', 
-                                          borderRadius: '4px', 
-                                          border: '1px solid rgba(255,255,255,0.05)',
-                                          display: 'flex',
-                                          justifyContent: 'space-between',
-                                          alignItems: 'center'
-                                        }}>
-                                          <span>📦 {item.descripcion}</span>
-                                          <code style={{ opacity: 0.4, fontSize: '0.6rem' }}>{item.serialId}</code>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </td>
-                                <td style={{ verticalAlign: 'top', padding: '1rem 0' }}>{p.specialty}</td>
-                                <td style={{ verticalAlign: 'top', padding: '1rem 0', fontSize: '0.8rem', opacity: 0.6 }}><code>{p.address.substring(0, 6)}...{p.address.substring(38)}</code></td>
-                                <td style={{ verticalAlign: 'top', padding: '1rem 0' }}>
-                                  <span className="status-badge" style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem', background: p.estado === 'DISPONIBLE' ? 'rgba(77,255,77,0.1)' : 'rgba(255,77,77,0.1)', color: p.estado === 'DISPONIBLE' ? '#4dff4d' : '#ff4d4d', fontWeight: 'bold', borderRadius: '4px' }}>
-                                    {p.estado}
-                                  </span>
-                                </td>
-                                <td style={{ verticalAlign: 'top', padding: '1rem 0', color: p.incidente !== '---' ? 'var(--accent-color)' : '#666', fontWeight: p.incidente !== '---' ? 'bold' : 'normal' }}>
-                                  {p.incidente}
-                                </td>
-                            </tr>
-                          );
-                        })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {(isJefeEscena || isBaseOperativa) && (
-            <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}>
-              <button
-                className="btn btn-secondary"
-                onClick={() => setShowInventory(!showInventory)}
-                style={{ padding: '0.8rem 2rem', letterSpacing: '1px', fontWeight: 'bold', border: '1px solid var(--accent-color)' }}
-              >
-                {showInventory ? '🔼 OCULTAR INVENTARIO' : '📦 REVISAR INVENTARIO TÁCTICO'}
-              </button>
-            </div>
-          )}
-
-          {showInventory && (
-            <div className="card" style={{ animation: 'fadeIn 0.3s ease' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', flexWrap: 'wrap' }}>
-                  <h2 style={{ margin: 0 }}>📦 Tablero de Logística Forestal</h2>
-                  <input type="text" placeholder="Buscar recurso o ID..." className="skin-select" style={{ padding: '0.4rem 0.8rem', width: '160px', backgroundImage: 'none', fontSize: '0.75rem' }} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <label style={{ fontSize: '0.7rem', color: '#666' }}>FILTRAR:</label>
-                    <select className="skin-select" style={{ padding: '0.3rem', fontSize: '0.7rem', width: 'auto' }} value={inventoryFilter} onChange={(e) => setInventoryFilter(e.target.value)}>
-                      <option value="all">TODOS</option>
-                      <option value="available">DISPONIBLES 🟢</option>
-                      <option value="operation">EN OPERACIÓN 🔴</option>
-                    </select>
-                  </div>
-                </div>
-                <button className="btn btn-secondary" style={{ fontSize: '0.7rem', padding: '0.4rem 0.8rem' }} onClick={() => hardRefresh()}>🔄 ACTUALIZAR STOCK</button>
-              </div>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '1.05rem' }}>
-                  <thead>
-                    <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>
-                      <th style={{ padding: '1rem', width: '50px' }}>#</th>
-                      <th style={{ padding: '1rem', width: '120px' }}>ID SERIAL</th>
-                      <th style={{ padding: '1rem', width: '120px' }}>HASH ACTIVO</th>
-                       <th style={{ padding: '1rem' }}>RECURSO</th>
-                      <th style={{ padding: '1rem', width: '100px' }}>CAPACIDAD</th>
-                      <th style={{ padding: '1rem', width: '120px' }}>HISTORIAL</th>
-                      <th style={{ padding: '1rem' }}>ESTADO</th>
-                      <th style={{ padding: '1rem' }}>INCIDENTE</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {inventory
-                      .filter(item => {
-                        const matchesSearch = item.serialId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          item.descripcion.toLowerCase().includes(searchTerm.toLowerCase());
-                        
-                        if (inventoryFilter === 'available') return matchesSearch && item.estado === 0;
-                        if (inventoryFilter === 'operation') return matchesSearch && item.estado === 1;
-                        return matchesSearch;
-                      })
-                      .map((item, idx) => (
-                        <tr key={item.hash} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                          <td style={{ padding: '1rem', color: '#666' }}>{idx + 1}</td>
-                          <td style={{ padding: '1rem', color: 'var(--accent-color)', fontWeight: 'bold', fontSize: '1.2rem' }}>{item.serialId}</td>
-                          <td style={{ padding: '1rem' }}><code style={{ fontSize: '0.85rem', color: '#444' }}>{item.hash.substring(0, 10)}...</code></td>
-                          <td style={{ padding: '1rem', fontWeight: 'bold' }}>
-                            <div>{item.descripcion}</div>
-                            {item.estado === 1 && item.custodio !== ethers.ZeroAddress && (
-                              <div style={{ fontSize: '0.75rem', fontWeight: 'normal', color: 'var(--accent-color)', opacity: 0.8, marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                <span>👤</span>
-                                <span style={{ fontWeight: 'bold' }}>{personnel.find(p => p.address.toLowerCase() === item.custodio.toLowerCase())?.name || 'Cargando...'}</span>
-                              </div>
-                            )}
-                          </td>
-                          <td style={{ padding: '1rem', color: 'var(--text-secondary)', maxWidth: '100px' }}>
-                            <div style={{ wordBreak: 'break-word', whiteSpace: 'normal', lineHeight: '1', fontSize: '0.85rem' }}>
-                              {item.consumo > 0 ? `${item.consumo} ml/h` : <div>Manual /<br/>Herramienta</div>}
-                            </div>
-                          </td>
-                          <td style={{ padding: '1rem' }}>
-                            <button 
-                              className="btn btn-secondary" 
-                              onClick={() => fetchAssetHistory(item)}
-                              style={{ padding: '0.2rem 0.6rem', fontSize: '0.65rem', borderRadius: '20px', border: '1px solid #444', background: 'rgba(255,255,255,0.05)' }}
-                            >
-                              🔍 VER HISTORIAL
-                            </button>
-                          </td>
-                          <td style={{ padding: '1rem' }}>
-                            <span className="status-badge" style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem', background: item.estado === 0 ? 'rgba(77,255,77,0.1)' : 'rgba(255,77,77,0.1)', color: item.estado === 0 ? '#4dff4d' : '#ff4d4d', fontWeight: 'bold', borderRadius: '4px' }}>
-                              {item.estado === 0 ? 'DISPONIBLE' : 'EN OPERACIÓN'}
-                            </span>
-                          </td>
-                          <td style={{ padding: '1rem', color: item.incidente !== '---' ? 'var(--accent-color)' : '#666', fontWeight: item.incidente !== '---' ? 'bold' : 'normal' }}>
-                            {item.incidente}
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          <div className="card">
-            <h2>ESTADO DEL SISTEMA DE MONITOREO</h2>
-            <div className="status-badge"><span className="status-dot"></span><span>NODO LOCAL: 31337</span></div>
-            {account && (
-              <div style={{ marginTop: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                Sesión activa: <code style={{ color: 'var(--accent-color)' }}>{account}</code>
-              </div>
-            )}
+          <div className="card" style={{ textAlign: 'center', padding: '4rem 2rem' }}>
+            <div style={{ fontSize: '4rem', marginBottom: '1.5rem' }}>🛰️</div>
+            <h2 style={{ color: 'var(--accent-color)' }}>SISTEMA DE TRAZABILIDAD FIREOPS</h2>
+            <p style={{ color: '#888', maxWidth: '500px', margin: '0 auto 2rem' }}>
+              Conecte su billetera autorizada para acceder a sus funciones de mando o de campo.
+            </p>
+            <button className="btn" onClick={() => connectWallet(null, true)} style={{ padding: '1rem 2rem' }}>CONECTAR AHORA</button>
           </div>
         </main>
       ) : (
-        <TacticalPanel 
-          eventoId={selectedIncident.id} 
-          coordenadas={selectedIncident.coords} 
-          contract={contractInstance} 
-          onBack={() => setCurrentView('inventory')} 
-          onGenerateReport={(logs) => generarReportePDF(selectedIncident, logs)}
-          inventory={inventory}
-          personnel={personnel}
-        />
-      )
-      }
+        /* ESTADO DE CARGA/TRANSICIÓN */
+        loading ? (
+          <main>
+            <div className="card" style={{ textAlign: 'center', padding: '10rem 2rem', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
+              <div className="spin" style={{ fontSize: '4rem', marginBottom: '2rem' }}>🛰️</div>
+              <h2 style={{ letterSpacing: '2px', color: 'var(--accent-color)' }}>SINCRONIZANDO CADENA DE MANDO</h2>
+              <p style={{ color: 'var(--text-secondary)' }}>Verificando credenciales en la red de auditoría...</p>
+            </div>
+          </main>
+        ) : (isBaseOperativa || isJefeEscena || isAdmin || isAuditor) ? (
+        /* VISTA DE MANDO / AUDITORÍA - PRIORIDAD ALTA */
+        currentView === 'tactical' && selectedIncident ? (
+          <TacticalPanel
+            eventoId={selectedIncident.id}
+            coordenadas={selectedIncident.coords}
+            riesgo={selectedIncident.riesgo}
+            contract={contractInstance}
+            onBack={() => setCurrentView('inventory')}
+            onGenerateReport={(logs) => generarReportePDF(selectedIncident, logs)}
+            inventory={inventory}
+            personnel={personnel}
+          />
+        ) : (
+          <main>
+            {/* Contenedor de Toasts Flotantes */}
+            <div className="toast-container">
+              {status.message && (
+                <div className={`status-banner ${status.type}`}>
+                  {status.type === 'success' && <span>✅</span>}
+                  {status.type === 'error' && <span>❌</span>}
+                  {status.type === 'warning' && <span>⚠️</span>}
+                  {status.type === 'info' && <span className="spin">⏳</span>}
+                  <span>{status.message}</span>
+                </div>
+              )}
+            </div>
+
+            {/* RENDERIZADO EXCLUSIVO POR ROL (Mesa de Trabajo) */}
+            {isAdmin && currentView === 'inventory' ? (
+              <AdminDashboard
+                contract={contractInstance}
+                account={account}
+                personnel={personnel}
+                onRefresh={hardRefresh}
+                setStatus={setStatus}
+              />
+            ) : isAuditor && currentView === 'inventory' ? (
+              <AuditorDashboard 
+                contract={contractInstance}
+                inventory={inventory}
+                personnel={personnel}
+                incidents={incidents}
+                hardRefresh={hardRefresh}
+                fetchAssetHistory={fetchAssetHistory}
+                generarReportePDF={generarReportePDF}
+              />
+            ) : isBaseOperativa && currentView === 'inventory' ? (
+              <>
+                <BaseOperativaDashboard
+                  contract={contractInstance}
+                  account={account}
+                  inventory={inventory.map(item => ({
+                    ...item,
+                    estadoLabel: item.estado === 0 ? 'DISPONIBLE' : item.estado === 1 ? 'EN  USO' : item.estado === 2 ? 'TALLER' : item.estado === 3 ? 'EXTRAVIADO' : 'EN RETORNO',
+                    custodioNombre: personnel.find(p => p.address?.toLowerCase() === item.custodio?.toLowerCase())?.name || (item.custodio === ethers.ZeroAddress ? 'BASE' : '---')
+                  }))}
+                  personnel={personnel}
+                  loading={loading}
+                  setLoading={setLoading}
+                  setStatus={setStatus}
+                  hardRefresh={hardRefresh}
+                  fetchAssetHistory={fetchAssetHistory}
+                  openReturnModal={openReturnModal}
+                />
+
+                {/* La Base Operativa también ve los Incidentes Activos para seguimiento */}
+                {incidents.length > 0 && (
+                  <div className="card" style={{ marginTop: '2rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                      <h2 style={{ margin: 0 }}>📑 INCIDENTES EN TABLERO TÁCTICO (SEGUIMIENTO)</h2>
+                      <button className="btn btn-secondary" style={{ fontSize: '0.7rem', padding: '0.4rem 0.8rem' }} onClick={hardRefresh}>🔄 REFRESCAR</button>
+                    </div>
+                    <div style={{ display: 'grid', gap: '1rem' }}>
+                      {incidents.map((fire) => (
+                        <div key={fire.id} className="status-badge" style={{ justifyContent: 'space-between', padding: '1.2rem', background: 'var(--bg-primary)', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                              <span style={{ fontWeight: '800', color: 'var(--accent-color)' }}>ID-INC{fire.id.padStart(3, '0')}</span>
+                              <span style={{ margin: '0 1rem', color: '#666' }}>|</span>
+                              <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{formatTime(fire.timestamp)}</span>
+                              <span style={{ margin: '0 1rem', color: '#666' }}>|</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Riesgo:</span>
+                                <span className={`status-pill risk-${fire.riesgo}`} style={{ fontSize: '0.65rem', fontWeight: '800' }}>
+                                  {fire.riesgo === '1' && 'BAJO'}
+                                  {fire.riesgo === '2' && 'MODERADO'}
+                                  {fire.riesgo === '3' && 'ALTO'}
+                                  {fire.riesgo === '4' && 'MUY ALTO'}
+                                  {fire.riesgo === '5' && 'EXTREMO'}
+                                </span>
+                                {fire.activo && (
+                                  <button
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', padding: '0 2px' }}
+                                    onClick={(e) => { e.stopPropagation(); setSelectedRiskIncident(fire); setShowRiskModalApp(true); }}
+                                    title="Editar Riesgo"
+                                  >
+                                    ✏️
+                                  </button>
+                                )}
+                              </div>
+                              {!fire.activo && (
+                                <>
+                                  <span style={{ margin: '0 1rem', color: '#666' }}>|</span>
+                                  <span style={{ background: 'rgba(255,100,100,0.1)', color: '#ff6464', padding: '0.1rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 'bold' }}>CERRADO</span>
+                                </>
+                              )}
+                            </div>
+                            <div>
+                              <span>📍 {fire.coords}</span>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button
+                              className="btn btn-secondary"
+                              style={{ padding: '0.4rem 0.75rem', fontSize: '0.70rem', border: '1px solid var(--accent-color)', opacity: fire.activo ? 1 : 0.5 }}
+                              onClick={(e) => { e.stopPropagation(); setSelectedV360Incident(fire); setShowV360Modal(true); }}
+                            >
+                              👁️ RESUMEN EVENTO
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : isJefeEscena ? (
+              <>
+                <div className="card" style={{ borderColor: 'var(--accent-color)', borderStyle: 'dashed' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <h2>OPERACIONES DE CAMPO (JEFE DE ESCENA)</h2>
+                      <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>
+                        Apertura y seguimiento de incidentes activos. Genere bitácoras de combate directamente en la red.
+                      </p>
+                    </div>
+                    <div className="badge-role" style={{ background: 'rgba(255, 111, 0, 0.2)' }}>👨‍🚒 JEFE DE ESCENA</div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', alignItems: 'flex-end' }}>
+                    <div>
+                      <label className="skin-label" style={{ display: 'block', marginBottom: '0.5rem' }}>COORDENADAS (LAT, LON)</label>
+                      <input type="text" className="skin-select" style={{ width: '100%', padding: '0.8rem', backgroundImage: 'none' }} placeholder="-1.023, -78.456" value={fireCoords} onChange={(e) => setFireCoords(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="skin-label" style={{ display: 'block', marginBottom: '0.5rem' }}>NIVEL DE RIESGO</label>
+                      <select className="skin-select" style={{ width: '100%', padding: '0.8rem' }} value={riskLevel} onChange={(e) => setRiskLevel(Number(e.target.value))}>
+                        <option value="1">1 - Bajo</option>
+                        <option value="2">2 - Moderado</option>
+                        <option value="3">3 - Alto</option>
+                        <option value="4">4 - Crítico</option>
+                        <option value="5">5 - Catastrófico</option>
+                      </select>
+                    </div>
+                    <button className="btn" onClick={abrirIncidente} disabled={loading} style={{ padding: '0.8rem' }}>
+                      {loading ? <span className="spin">⏳</span> : <span>🚀</span>} DESPLEGAR INCIDENTE
+                    </button>
+                  </div>
+                </div>
+
+                {incidents.length > 0 && (
+                  <div className="card">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                      <h2 style={{ margin: 0 }}>INCIDENTES EN TABLERO TÁCTICO</h2>
+                      <button className="btn btn-secondary" style={{ fontSize: '0.7rem', padding: '0.4rem 0.8rem' }} onClick={hardRefresh}>🔄 REFRESCAR</button>
+                    </div>
+                    <div style={{ display: 'grid', gap: '1rem' }}>
+                      {incidents.map((fire) => (
+                        <div key={fire.id} className="status-badge" style={{ justifyContent: 'space-between', padding: '1.2rem', background: 'var(--bg-primary)', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                              <span style={{ fontWeight: '800', color: 'var(--accent-color)' }}>ID-INC{fire.id.padStart(3, '0')}</span>
+                              <span style={{ margin: '0 1rem', color: '#666' }}>|</span>
+                              <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{formatTime(fire.timestamp)}</span>
+                              <span style={{ margin: '0 1rem', color: '#666' }}>|</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Riesgo:</span>
+                                <span className={`status-pill risk-${fire.riesgo}`} style={{ fontSize: '0.65rem', fontWeight: '800' }}>
+                                  {fire.riesgo === '1' && 'BAJO'}
+                                  {fire.riesgo === '2' && 'MODERADO'}
+                                  {fire.riesgo === '3' && 'ALTO'}
+                                  {fire.riesgo === '4' && 'MUY ALTO'}
+                                  {fire.riesgo === '5' && 'EXTREMO'}
+                                </span>
+                                {fire.activo && (
+                                  <button
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', padding: '0 2px' }}
+                                    onClick={(e) => { e.stopPropagation(); setSelectedRiskIncident(fire); setShowRiskModalApp(true); }}
+                                    title="Editar Riesgo"
+                                  >
+                                    ✏️
+                                  </button>
+                                )}
+                              </div>
+                              {!fire.activo && (
+                                <>
+                                  <span style={{ margin: '0 1rem', color: '#666' }}>|</span>
+                                  <span style={{ background: 'rgba(255,100,100,0.1)', color: '#ff6464', padding: '0.1rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 'bold' }}>CERRADO</span>
+                                </>
+                              )}
+                            </div>
+                            <div>
+                              <span>📍 {fire.coords}</span>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            {fire.activo && (
+                              <button className="btn btn-secondary" style={{ padding: '0.4rem 0.75rem', fontSize: '0.70rem', border: '1px solid var(--accent-color)' }} onClick={() => setSelectedAssignmentIncident(fire)}>🔗 ASIGNAR RECURSO</button>
+                            )}
+                            <button
+                              className="btn btn-secondary"
+                              style={{ padding: '0.4rem 0.75rem', fontSize: '0.70rem', border: '1px solid var(--accent-color)', opacity: fire.activo ? 1 : 0.5 }}
+                              onClick={(e) => { e.stopPropagation(); setSelectedV360Incident(fire); setShowV360Modal(true); }}
+                            >
+                              👁️ RESUMEN EVENTO
+                            </button>
+                            <button className="btn btn-secondary" style={{ padding: '0.4rem 0.75rem', fontSize: '0.70rem' }} onClick={() => { setSelectedIncident(fire); setCurrentView('tactical'); }}>🚀 {fire.activo ? 'PANEL DE CONTROL' : 'VER BITÁCORA'}</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Listado de Personal (Solo Lectura para Jefe de Escena) */}
+                <div style={{ marginTop: '2rem' }}>
+                  <PersonnelTable
+                    personnel={personnel}
+                    inventory={inventory}
+                    canManage={false}
+                    hardRefresh={hardRefresh}
+                  />
+                </div>
+
+                {/* Listado de Activos (Solo Lectura para Jefe de Escena) */}
+                <div style={{ marginTop: '2rem' }}>
+                  <AssetTable
+                    inventory={inventory.map(item => ({
+                      ...item,
+                      estadoLabel: item.estado === 0 ? 'Disponible' : item.estado === 1 ? 'EnUso' : item.estado === 2 ? 'Taller' : item.estado === 3 ? 'Perdido' : 'EnRetorno',
+                      custodioNombre: personnel.find(p => p.address?.toLowerCase() === item.custodio?.toLowerCase())?.name || (item.custodio === ethers.ZeroAddress ? 'BASE' : '---')
+                    }))}
+                    canAudit={false}
+                    fetchAssetHistory={fetchAssetHistory}
+                    hardRefresh={hardRefresh}
+                  />
+                </div>
+              </>
+            ) : null}
+
+
+            <div className="card">
+              <h2>ESTADO DEL SISTEMA DE MONITOREO</h2>
+              <div className="status-badge"><span className="status-dot"></span><span>NODO LOCAL: 31337</span></div>
+              {account && (
+                <div style={{ marginTop: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                  Sesión activa: <code style={{ color: 'var(--accent-color)' }}>{account}</code>
+                </div>
+              )}
+            </div>
+          </main>
+        )
+      ) : (
+          /* PRIORIDAD 3: CASO BASE - VISTA DE CAMPO (BRIGADISTA) */
+          <BrigadistaDashboard
+            personnel={personnel}
+            inventory={inventory}
+            incidents={incidents}
+            contract={contractInstance}
+            account={account}
+            onConnect={connectWallet}
+            onBack={() => { }}
+            onRefresh={hardRefresh}
+          />
+        )
+      )}
+
 
       {
         selectedAssignmentIncident && (
@@ -1030,21 +1300,82 @@ function App() {
                 value={assignmentSearchTerm}
                 onChange={(e) => setAssignmentSearchTerm(e.target.value)}
               />
-              <select className="skin-select" size="5" value={selectedResource} onChange={(e) => setSelectedResource(e.target.value)} style={{ width: '100%', marginBottom: '1rem', fontSize: '1rem', fontWeight: '500' }}>
-                <option value="" style={{ padding: '0.5rem' }}>-- {inventory.filter(i => i.estado === 0).length} Disponibles --</option>
-                {inventory
-                  .filter(i => i.estado === 0)
-                  .filter(i =>
-                    i.serialId.toLowerCase().includes(assignmentSearchTerm.toLowerCase()) ||
-                    i.descripcion.toLowerCase().includes(assignmentSearchTerm.toLowerCase())
-                  )
-                  .map(i => <option key={i.hash} value={i.hash} style={{ padding: '0.5rem' }}>{i.serialId} | {i.descripcion}</option>)
-                }
-              </select>
+
+              <div style={{ backgroundColor: '#000', borderRadius: '8px', padding: '0.5rem', marginBottom: '1rem', border: '1px solid #333' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.2rem 0.5rem', borderBottom: '1px solid #222', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.7rem', color: '#888' }}>RECURSOS DISPONIBLES</span>
+                  <div style={{ display: 'flex', gap: '0.8rem' }}>
+                    {selectedResources.length > 0 && (
+                      <span style={{ fontSize: '0.7rem', color: '#000', backgroundColor: 'var(--accent-color)', padding: '0px 6px', borderRadius: '4px', fontWeight: 'bold' }}>
+                        {selectedResources.length} SELECCIONADOS
+                      </span>
+                    )}
+                    <span style={{ fontSize: '0.7rem', color: 'var(--accent-color)' }}>{inventory.filter(i => i.estado === 0).length} en stock</span>
+                  </div>
+                </div>
+
+                <div style={{ maxHeight: '180px', overflowY: 'auto', padding: '0.2rem' }}>
+                  {inventory
+                    .filter(i => i.estado === 0)
+                    .filter(i =>
+                      i.serialId.toLowerCase().includes(assignmentSearchTerm.toLowerCase()) ||
+                      i.descripcion.toLowerCase().includes(assignmentSearchTerm.toLowerCase())
+                    )
+                    .map(i => (
+                      <label key={i.hash} style={{ display: 'flex', alignItems: 'center', padding: '0.4rem', borderBottom: '1px solid #1a1a1a', cursor: 'pointer', gap: '0.8rem' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedResources.includes(i.hash)}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedResources(prev => [...prev, i.hash])
+                            else setSelectedResources(prev => prev.filter(id => id !== i.hash))
+                          }}
+                          style={{ width: '18px', height: '18px', accentColor: 'var(--accent-color)' }}
+                        />
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>{i.serialId}</span>
+                          <span style={{ fontSize: '0.7rem', color: '#aaa' }}>{i.descripcion}</span>
+                        </div>
+                      </label>
+                    ))
+                  }
+                  {inventory.filter(i => i.estado === 0).length === 0 && (
+                    <div style={{ padding: '1rem', textAlign: 'center', color: '#666', fontSize: '0.8rem' }}>No hay recursos disponibles</div>
+                  )}
+                </div>
+
+                <details style={{ marginTop: '0.5rem', borderTop: '1px solid #222' }}>
+                  <summary style={{ fontSize: '0.7rem', color: '#666', padding: '0.5rem', cursor: 'pointer', listStyle: 'none', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>🔴 NO DISPONIBLES (EN USO)</span>
+                    <span>▼</span>
+                  </summary>
+                  <div style={{ maxHeight: '120px', overflowY: 'auto', opacity: 0.6 }}>
+                    {inventory
+                      .filter(i => i.estado !== 0)
+                      .filter(i =>
+                        i.serialId.toLowerCase().includes(assignmentSearchTerm.toLowerCase()) ||
+                        i.descripcion.toLowerCase().includes(assignmentSearchTerm.toLowerCase())
+                      )
+                      .map(i => (
+                        <div key={i.hash} style={{ display: 'flex', alignItems: 'center', padding: '0.4rem', borderBottom: '1px solid #1a1a1a', gap: '0.8rem', filter: 'grayscale(1)' }}>
+                          <input type="checkbox" disabled style={{ width: '18px', height: '18px' }} />
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#888' }}>{i.serialId}</span>
+                            <span style={{ fontSize: '0.6rem', color: '#666' }}>{i.descripcion}</span>
+                          </div>
+                        </div>
+                      ))
+                    }
+                  </div>
+                </details>
+              </div>
               <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--accent-color)', marginBottom: '0.5rem' }}>BRIGADISTA ASIGNADO:</label>
               <select className="skin-select" value={selectedBrigadista} onChange={(e) => setSelectedBrigadista(e.target.value)} style={{ width: '100%', fontSize: '1rem' }}>
                 <option value="">-- Seleccionar Personal --</option>
-                {personnel.map(p => <option key={p.address} value={p.address} style={{ padding: '0.4rem' }}>{p.name} ({p.specialty})</option>)}
+                {personnel
+                  .filter(p => p.incidente === '---' || p.incidente === `ID-INC${selectedAssignmentIncident.id.padStart(3, '0')}`)
+                  .map(p => <option key={p.address} value={p.address} style={{ padding: '0.4rem' }}>{p.name} ({p.specialty})</option>)
+                }
               </select>
             </div>
             <div style={{ display: 'flex', gap: '1rem' }}>
@@ -1061,7 +1392,9 @@ function App() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #333', padding: '1rem 1.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                 <span style={{ fontSize: '1.5rem' }}>📋</span>
-                <h3 style={{ margin: 0, letterSpacing: '1px' }}>RESUMEN DEL EVENTO</h3>
+                <h3 style={{ margin: 0, letterSpacing: '1px' }}>
+                  RESUMEN DEL EVENTO: <span style={{ color: 'var(--accent-color)' }}>ID-INC{selectedV360Incident.id.padStart(3, '0')}</span>
+                </h3>
               </div>
               <button className="btn btn-secondary" onClick={() => setShowV360Modal(false)} style={{ padding: '0.2rem 0.6rem' }}>×</button>
             </div>
@@ -1126,15 +1459,53 @@ function App() {
                   {v360Logs.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '1rem', color: '#555', fontSize: '0.8rem' }}>No hay hitos registrados en la bitácora todavía.</div>
                   ) : (
-                    v360Logs.map((log, i) => (
-                      <div key={i} style={{ background: 'rgba(255,255,255,0.02)', padding: '0.6rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--accent-color)', marginBottom: '0.2rem' }}>
-                          <span>{new Date(log.timestamp * 1000).toLocaleString()}</span>
-                          <span style={{ color: '#666' }}>Op: {log.operador.substring(0, 6)}...</span>
+                    v360Logs.map((log, i) => {
+                      const item = log.codigoInsumo && log.codigoInsumo !== ethers.ZeroHash ? inventory.find(i => i.hash === log.codigoInsumo) : null;
+                      const opName = personnel.find(p => p.address.toLowerCase() === log.operador.toLowerCase())?.name || log.operador.substring(0, 8) + '...';
+                      return (
+                        <div key={i} style={{ background: 'rgba(255,255,255,0.02)', padding: '0.8rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <span style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--accent-color)', letterSpacing: '0.5px' }}>
+                                Op: {opName}
+                              </span>
+                              <span style={{ fontSize: '0.65rem', color: '#666' }}>{new Date(log.timestamp * 1000).toLocaleString()}</span>
+                            </div>
+                            {item && (
+                              <span style={{ fontSize: '0.65rem', color: '#ff8c00', background: 'rgba(255,140,0,0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid rgba(255,140,0,0.2)', fontWeight: 'bold' }}>
+                                📦 {item.serialId} - {item.descripcion}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: '0.85rem', color: '#eee', lineHeight: '1.5', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '0.4rem' }}>
+                            {log.detalles.includes('[ESTADO:') && (
+                              <div style={{ marginBottom: '0.4rem' }}>
+                                <span style={{ 
+                                  background: log.detalles.includes('PERDIDO') ? '#a333c8' : 
+                                              log.detalles.includes('DAÑO CRÍTICO') ? '#ff4d4d' : 
+                                              log.detalles.includes('DAÑO MENOR') ? '#ffcc00' : '#4dff4d', 
+                                  color: log.detalles.includes('DAÑO MENOR') ? '#000' : '#fff', 
+                                  padding: '0.1rem 0.5rem', 
+                                  borderRadius: '4px', 
+                                  fontSize: '0.7rem', 
+                                  fontWeight: 'bold' 
+                                }}>
+                                  {log.detalles.match(/\[ESTADO: (.*?)\]/)?.[0] || 'REPORTE DE ESTADO'}
+                                </span>
+                              </div>
+                            )}
+                            {(log.detalles.includes('Daño Crítico') || log.detalles.includes('Daño Critico')) && !log.detalles.includes('[ESTADO:') && (
+                              <div style={{ marginBottom: '0.4rem' }}>
+                                <span style={{ background: '#ff4d4d', color: '#fff', padding: '0.1rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                                  ⚠️ REPORTE DE DAÑO CRÍTICO
+                                </span>
+                              </div>
+                            )}
+                            {log.detalles.replace(/\[ESTADO: .*?\] /, '')}
+                          </div>
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: '#fff', lineHeight: '1.4' }}>{log.detalles}</div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
@@ -1184,10 +1555,28 @@ function App() {
                           {log.type === 'hito' && '📝 REPORTE DE CAMPO'}
                           {log.type === 'retorno' && '✅ RETORNO A BASE'}
                         </div>
-                        <div style={{ fontSize: '0.85rem', color: '#ccc' }}>{log.details}</div>
-                        
+                         <div style={{ fontSize: '0.85rem', color: '#ccc' }}>
+                           {log.details.includes('[ESTADO:') && (
+                             <div style={{ marginBottom: '0.4rem' }}>
+                               <span style={{ 
+                                 background: log.details.includes('PERDIDO') ? '#a333c8' : 
+                                             log.details.includes('DAÑO CRÍTICO') ? '#ff4d4d' : 
+                                             log.details.includes('DAÑO MENOR') ? '#ffcc00' : '#4dff4d', 
+                                 color: log.details.includes('DAÑO MENOR') ? '#000' : '#fff', 
+                                 padding: '0.1rem 0.5rem', 
+                                 borderRadius: '4px', 
+                                 fontSize: '0.7rem', 
+                                 fontWeight: 'bold' 
+                               }}>
+                                 {log.details.match(/\[ESTADO: (.*?)\]/)?.[0] || 'REPORTE DE ESTADO'}
+                               </span>
+                             </div>
+                           )}
+                           {log.details.replace(/\[ESTADO: .*?\] /, '')}
+                         </div>
+
                         <div style={{ fontSize: '0.75rem', marginTop: '0.5rem', color: 'var(--accent-color)', fontWeight: 'bold' }}>
-                          Responsable: {log.operador === 'BASE' ? 'BASE OPERATIVA' : (personnel.find(p => p.address.toLowerCase() === log.operador?.toLowerCase())?.name || log.operador)}
+                          Responsable: {String(log.operador) === 'BASE' ? 'BASE OPERATIVA' : (personnel.find(p => String(p.address).toLowerCase() === String(log.operador).toLowerCase())?.name || String(log.operador).substring(0, 10) + '...')}
                         </div>
                         <div style={{ fontSize: '0.65rem', marginTop: '0.2rem', color: '#555', fontFamily: 'monospace', wordBreak: 'break-all' }}>
                           TxHash: {log.txHash}
@@ -1202,6 +1591,103 @@ function App() {
             <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem' }}>
               <button className="btn btn-secondary" onClick={() => generarReporteHistorialPDF(historyData.item, historyData.logs)} style={{ flex: 1, padding: '0.8rem', fontSize: '0.8rem' }}>📦 REPORTE HISTORIAL</button>
               <button className="btn btn-secondary" onClick={() => setShowHistoryModal(false)} style={{ flex: 1, padding: '0.8rem', fontSize: '0.8rem' }}>CERRAR HISTORIAL</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL CAMBIO DE RIESGO DESDE DASHBOARD */}
+      {showRiskModalApp && selectedRiskIncident && (
+        <div className="v360-modal-overlay">
+          <div className="v360-modal-content card" style={{ padding: '2rem', maxWidth: '400px', textAlign: 'center' }}>
+            <h3 style={{ color: 'var(--accent-color)' }}>ACTUALIZAR CRITICIDAD</h3>
+            <p style={{ fontSize: '0.85rem', color: '#ccc', marginBottom: '1.5rem' }}>
+              Incidente: <span style={{ color: 'var(--accent-color)', fontWeight: 'bold' }}>ID-INC{selectedRiskIncident.id.padStart(3, '0')}</span>
+            </p>
+
+            <select
+              defaultValue={selectedRiskIncident.riesgo}
+              onChange={(e) => actualizarRiesgoApp(Number(e.target.value))}
+              disabled={loading}
+              style={{ width: '100%', padding: '0.8rem', marginBottom: '1.5rem', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }}
+            >
+              <option value="1">1 - Bajo</option>
+              <option value="2">2 - Moderado</option>
+              <option value="3">3 - Alto</option>
+              <option value="4">4 - Muy Alto</option>
+              <option value="5">5 - Extremo</option>
+            </select>
+
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowRiskModalApp(false)}
+              >
+                CANCELAR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE AUDITORÍA (GLOBAL) */}
+      {showReturnModal && selectedReturnItem && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '500px', border: '5px double #4dff4d', background: '#050505', padding: '1.5rem', boxShadow: '0 0 30px rgba(77, 255, 77, 0.2)' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid rgba(77, 255, 77, 0.3)', paddingBottom: '0.8rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#4dff4d', letterSpacing: '1px', textShadow: '0 0 10px rgba(77,255,77,0.5)' }}>📥 RECEPCIÓN FÍSICA Y AUDITORÍA</h3>
+              <button
+                onClick={() => setShowReturnModal(false)}
+                className="close-btn"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#ff4444',
+                  fontSize: '2.5rem',
+                  cursor: 'pointer',
+                  lineHeight: '0.8',
+                  padding: '0',
+                  fontWeight: 'lighter'
+                }}
+              >
+                &times;
+              </button>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '8px', fontSize: '0.85rem', borderLeft: '4px solid #4dff4d' }}>
+                <p style={{ margin: 0 }}><strong>Equipo:</strong> {selectedReturnItem.serialId} - {selectedReturnItem.descripcion}</p>
+                <p style={{ margin: '0.5rem 0 0 0' }}><strong>Procedencia:</strong> {selectedReturnItem.incidente} {!selectedReturnItem.incidenteActivo && '(Finalizado)'}</p>
+                <p style={{ fontSize: '0.75rem', color: '#888', marginTop: '1rem', fontStyle: 'italic' }}>
+                  Confirmar la recepción inmutable del equipo en base y realizar auditoría de consumo/estado.
+                </p>
+              </div>
+
+              <div>
+                <label className="skin-label">ESTADO FINAL (CHEQUEO FÍSICO)</label>
+                <select className="skin-select" value={returnForm.estadoFinal} onChange={(e) => setReturnForm({ ...returnForm, estadoFinal: Number(e.target.value) })}>
+                  <option value="0">✅ Disponible (Apto para re-despliegue)</option>
+                  <option value="2">🛠️ A Taller (Requiere Mantenimiento)</option>
+                  <option value="3">❌ Perdido / Destruido</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="skin-label">CONSUMO REAL (ML / LITROS)</label>
+                <input type="number" className="skin-select" style={{ backgroundImage: 'none' }} value={returnForm.consumoReal} onChange={(e) => setReturnForm({ ...returnForm, consumoReal: Number(e.target.value) })} />
+                {selectedReturnItem.consumoNominal > 0 && (
+                  <p style={{ fontSize: '0.7rem', color: '#666', marginTop: '0.4rem' }}>
+                    Referencia Nominal: {selectedReturnItem.consumoNominal} ml/h
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="skin-label">MOTIVO DE DISCREPANCIA (OPCIONAL)</label>
+                <textarea className="skin-select" style={{ backgroundImage: 'none', height: '80px', resize: 'none' }} placeholder="Describa si el equipo regresa con daños no reportados..." value={returnForm.motivoDiscrepancia} onChange={(e) => setReturnForm({ ...returnForm, motivoDiscrepancia: e.target.value })} />
+              </div>
+
+              <button className="btn" onClick={ejecutarRetorno} disabled={loading} style={{ width: '100%', marginTop: '1rem' }}>
+                {loading ? 'PROCESANDO...' : 'CONFIRMAR RECEPCIÓN INMUTABLE'}
+              </button>
             </div>
           </div>
         </div>

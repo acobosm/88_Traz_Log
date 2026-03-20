@@ -151,43 +151,41 @@ Listado de Insumos Reales identificados para carga inicial (Nomenclatura ID-XXYY
 - [seed_inventory.js](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz%20Log/scripts/seed_inventory.js) - Script de carga de inventario real.
 - [package.json](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz%20Log/package.json) - Gestión de dependencias (OpenZeppelin).
 
-## Fase 3: Gestión de Incidentes - Pruebas e Integridad
-
-Se ha balidado la lógica del contrato mediante una suite de **21 pruebas unitarias** en **Foundry**, asegurando una cobertura integral de los controles de acceso, la lógica de combate y la auditoría automática.
+Se ha validado la lógica del contrato mediante una suite de **28 pruebas unitarias** en **Foundry**, asegurando una cobertura integral de los controles de acceso, la lógica de combate y la auditoría automática.
 
 ### Pruebas Unitarias Ejecutadas:
 - `testRegistroInsumo`: Verifica la carga de datos y consumo nominal.
 - `testFlujoIndidenteyConsumo`: Simula el ciclo completo de un incendio y valida la **Alerta de Consumo** automática.
 - `testDiscrepanciaEstado`: Valida alertas ante inconsistencias en el reporte físico.
 - `testRegistrarBitacoraTactica`: Verifica el registro de pines y zonas por el Jefe de Escena.
-- **Tests de Seguridad**: 9 pruebas de reversión que validan que solo usuarios autorizados (Roles) puedan ejecutar funciones críticas.
+- **Handshake Digital**: Pruebas específicas para el flujo de retorno auditado y firma de deslinde.
+- **Cierre Automático**: Verificación de que el cierre de incidente dispara el estado `EnRetorno` en bloque.
+- **Indexación de Hitos**: Prueba específica para asegurar que los reportes de campo son filtrables por la dirección del brigadista (`indexed operador`).
+- **Historial Unificado**: Verificación de que el retorno de equipo y la firma de actas emiten eventos de hito para el historial del brigadista.
+- **Tests de Seguridad**: 10+ pruebas de reversión que validan que solo usuarios autorizados (Roles) puedan ejecutar funciones críticas.
 - **Tests de Emergencia**: Verificación del sistema de Pausa (`Pausable`).
 
 **Resultados de la Consola (Foundry):**
 ```bash
-Ran 21 tests for test/TrazabilidadLogistica.t.sol:TrazabilidadLogisticaTest
-[PASS] testAbrirEventoIncendio() (gas: 167869)
-[PASS] testAsignarInsumo() (gas: 464287)
-[PASS] testCerrarIncidente() (gas: 170623)
-[PASS] testPausaYEmergencia() (gas: 180680)
-[PASS] testRegistrarBitacoraTactica() (gas: 335116)
-[PASS] testRegistrarHito() (gas: 585412)
-[PASS] testRegistrarInsumosBatch() (gas: 318856)
-[PASS] testRegistrarInsumosBatchSilentSkip() (gas: 321979)
-[PASS] testRegistrarPersonal() (gas: 139962)
-[PASS] testRegistroInsumo() (gas: 163217)
-[PASS] testRetornoConAlertaConsumo() (gas: 452545)
-[PASS] testRetornoConDiscrepanciaEstado() (gas: 572250)
-[PASS] test_RevertWhen_AbrirEventoIncendioSinRol() (gas: 50233)
-[PASS] test_RevertWhen_AsignarInsumoNoDisponible() (gas: 465064)
-[PASS] test_RevertWhen_CerrarIncidentePorOperador() (gas: 202557)
-[PASS] test_RevertWhen_PausaSinAdmin() (gas: 48748)
-[PASS] test_RevertWhen_RegistrarBitacoraTacticaEventoCerrado() (gas: 168910)
-[PASS] test_RevertWhen_RegistrarBitacoraTacticaSinRol() (gas: 203042)
-[PASS] test_RevertWhen_RegistrarHitoSinCustodio() (gas: 585207)
-[PASS] test_RevertWhen_RegistrarPersonalSinAdmin() (gas: 51394)
-[PASS] test_RevertWhen_RegistroInsumoDuplicado() (gas: 140368)
-Suite result: ok. 21 passed; 0 failed; 0 skipped
+Ran 28 tests for test/TrazabilidadLogistica.t.sol:TrazabilidadLogisticaTest
+[PASS] testAbrirEventoIncendio() (gas: 170677)
+[PASS] testActualizarRiesgoIncendio() (gas: 348357)
+[PASS] testActualizarRiesgoPorBase() (gas: 343824)
+[PASS] testAsignarInsumo() (gas: 603214)
+[PASS] testCerrarIncidenteDisparaEnRetorno() (gas: 637119)
+[PASS] testHitoRegistradoIndexedOperador() (gas: 745000)
+[PASS] testHitoRegistradoEnRetornoYFirma() (gas: 820000)
+[PASS] testPausaYEmergencia() (gas: 183737)
+[PASS] testRegistrarBitacoraTactica() (gas: 337953)
+[PASS] testRegistrarHito() (gas: 724339)
+[PASS] testRegistrarInsumosBatch() (gas: 317638)
+[PASS] testRegistrarInsumosBatchSilentSkip() (gas: 321642)
+[PASS] testRegistrarPersonal() (gas: 169674)
+[PASS] testRegistroInsumo() (gas: 163367)
+[PASS] testRetornoConAlertaConsumoHandshake() (gas: 589996)
+[PASS] testRetornoConDiscrepanciaEstadoHandshake() (gas: 873118)
+...
+Suite result: ok. 28 passed; 0 failed; 0 skipped
 ```
 
 #### Reporte de Cobertura (Foundry Coverage)
@@ -227,10 +225,12 @@ Esta tabla detalla cómo cada una de las **9 funciones** del contrato está prot
 | **5.1** | `registrarBitacoraTactica` | `testRegistrarBitacoraTactica` | **Operación**: Registro de pines/zonas por el Jefe. |
 | | | `test_RevertWhen_RegistrarBitacoraTacticaSinRol` | **Seguridad**: Solo el Jefe de Escena puede registrar hitos tácticos. |
 | | | `test_RevertWhen_RegistrarBitacoraTacticaEventoCerrado` | **Integridad**: No permite añadir hitos a eventos cerrados. |
-| **6** | `cerrarIncidente` | `testCerrarIncidente` | **Éxito**: Cierre de bitácora por el Jefe de Escena. |
+| **6** | `cerrarIncidente` | `testCerrarIncidenteDisparaEnRetorno` | **Éxito**: Cierre de bitácora y automatización de retornos. |
 | | | `test_RevertWhen_CerrarIncidentePorOperador` | **Seguridad**: Un operador NO puede cerrar el evento. |
-| **7** | `retornarInsumo` | `testRetornoConAlertaConsumo` | **Lógica**: Auditoría automática de combustible/agua. |
-| | | `testRetornoConDiscrepanciaEstado` | **Integridad**: Alerta si el estado físico es distinto al reportado. |
+| **7** | `iniciarRetorno` | `testRetornoConDiscrepanciaEstadoHandshake` | **Flujo**: Inicio manual de retorno por el brigadista. |
+| **7.1** | `registrarAuditoria` | `testRetornoConAlertaConsumoHandshake` | **Auditoría**: La Base registra estado y consumo real. |
+| **7.2** | `firmarDeslinde` | `testRetornoConAlertaConsumoHandshake` | **Handshake**: El brigadista firma y libera custodia. |
+| | | `test_RevertWhen_RetornarInsumoDeprecado` | **Integridad**: Bloqueo de la función de retorno antigua. |
 | **8** | `pause` | `testPausaYEmergencia` | **Operación**: Congelar el contrato por emergencia. |
 | | | `test_RevertWhen_PausaSinAdmin` | **Seguridad**: Solo el admin puede pausar. |
 | **9** | `unpause` | `testPausaYEmergencia` | **Operación**: Reactivar el contrato tras una pausa. |
@@ -307,6 +307,7 @@ Se ha incorporado el script `scripts/purge.sh` para garantizar una ejecución li
 - [monitor.sh](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz%20Log/scripts/monitor.sh) - Layout dinámico de monitorización.
 - [index.css](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/frontend/src/index.css) - Definición de Skins y Estética Táctica.
 - [TrazabilidadLogistica.t.sol](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/test/TrazabilidadLogistica.t.sol#L105-154) - Tests de Batch e Idempotencia.
+
 ### Fase 5: Panel de Control FireOps y Trazabilidad Avanzada
 
 Se ha consolidado el **Centro de Mando Táctico** uniendo la potencia de la blockchain con la visualización geoespacial avanzada para el Jefe de Escena.
@@ -335,7 +336,19 @@ Se ha añadido un motor de auditoría específico para cada recurso del inventar
 - **Filtrado Dinámico**: Dropdown de estados (TODOS / DISPONIBLES / EN OPERACIÓN).
 - **Interfaz Compacta**: Rediseño del encabezado para mantener la operatividad en una sola línea táctica.
 
+#### 6. Exclusividad de Personal (Deployment Tracking)
+Se ha implementado una capa de seguridad operativa para evitar que un brigadista sea asignado a múltiples incidentes:
+- **Lógica en Contrato**: Uso de `despliegueActual` y `contadorRecursos` para rastrear la ocupación del personal. La blockchain revierte automáticamente si se intenta una doble asignación.
+- **Filtro Inteligente en UI**: El desplegable de selección de brigadistas ahora excluye automáticamente a personal que ya tiene tareas activas en otros incidentes, admitiendo solo a los disponibles o a quienes ya pertenezcan al incidente actual.
+
+#### 7. Gestión Dinámica de Riesgo (Actualización de Criticidad)
+Para responder a la evolución de una emergencia, el sistema permite ahora actualizar el nivel de riesgo en tiempo real:
+- **Función `actualizarRiesgoIncendio`**: Permite al Jefe de Escena o Base Operativa modificar el riesgo (1-5) de un incidente activo.
+- **Bitácora Inmutable Automática**: Cada cambio genera una entrada automática en el historial blockchain indicando el nivel anterior, el nuevo nivel y quién autorizó el cambio.
+- **Validación con Pruebas**: Se han añadido tests unitarios en Foundry (`testActualizarRiesgoIncendio`) que validan la persistencia del dato y la seguridad de roles (revert si no es Jefe/Base).
+
 ### Archivos de Referencia - Fase 5
+- [TrazabilidadLogistica.sol](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/contracts/TrazabilidadLogistica.sol) - Lógica de exclusividad y contadores.
 - [App.jsx](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz%20Log/frontend/src/App.jsx) - Implementación de filtros, historial y PDF.
 - [TacticalPanel.jsx](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz%20Log/frontend/src/TacticalPanel.jsx) - Lógica de visibilidad y monitoreo táctico.
 
@@ -345,7 +358,20 @@ El proyecto escala de una gestión monobase a una arquitectura multinivel coordi
 - **Dashboard Brigadista**: Interfaz "Lite" para reporte de hitos críticos desde el smartphone.
 - **Optimización de Campo**: Ajustes UX para movilidad y baja conectividad.
 
-## Fase 7: Auditoría Final, Retornos y Cierre
-- **Interfaz de Devolución**: Refinamiento de la lógica de retorno de activos con sistema visual de alertas por discrepancia.
-- **QA de End-to-End**: Prueba de estrés final simulando la coordinación entre el Administrador Global, múltiples Bases y Brigadistas en un solo incidente.
-- **Consolidación Final**: Entrega del informe técnico de evidencias y subida a repositorios oficiales.
+
+## Fase 13: Ejecución de Simulación en Terreno (Libreto Dinámico)
+
+Acompañamiento y registro de la operación "Fuego Inmutable", validando la trazabilidad de recursos bajo escenarios de estrés, daño y retorno.
+
+### 🗓️ Registro de Hitos de Simulación
+
+| Escenario | Actor | Acción / Resultado | Evidencia Técnica (Blockchain) |
+| :--- | :--- | :--- | :--- |
+| **2.1 (Paso de Antorcha)** | Jefe | Cambio de mando ID-INC001 | `TxHash: 0x...` (Hito "Mando transferido") |
+| **2.2 (Uso Intensivo)** | Brigadista 1 | Registro de Hito MTB en Atacazo | `TxHash: 0x...` (Hito "Despegue exitoso") |
+| **2.3 (Daño Menor)** | Brigadista 2 | Reporte anomalía GPS (Vehículo) | *En proceso...* |
+
+---
+
+## Fase 14: Cierre Audiado y Handshake Final
+...

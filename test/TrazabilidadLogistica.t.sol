@@ -182,7 +182,7 @@ contract TrazabilidadLogisticaTest is Test {
         (
             uint256 id,
             address jefeRegistrado,
-            uint256 inicio,
+            , // inicio unused
             ,
             string memory coords,
             uint256 riesgo,
@@ -195,16 +195,78 @@ contract TrazabilidadLogisticaTest is Test {
         assertEq(coords, "-1.02, -78.50");
     }
 
-    function testCerrarIncidente() public {
+    function testCerrarIncidenteDisparaEnRetorno() public {
+        // 1. Preparar Insumo y Incendio
+        vm.prank(base);
+        bytes32 codigo = keccak256("ID-AUTORETURN");
+        trazabilidad.registrarInsumo(codigo, "Manguera Automatica", 0);
+
+        vm.prank(jefe);
+        trazabilidad.abrirEventoIncendio("Coords", 1);
+        
+        vm.prank(jefe);
+        trazabilidad.asignarInsumo(1, codigo, operador);
+
+        // 2. Cerrar incidente
+        vm.prank(jefe);
+        trazabilidad.cerrarIncidente(1);
+
+        // 3. Verificar estado EnRetorno automático
+        (,,,, TrazabilidadLogistica.EstadoInsumo estado,,,,) = trazabilidad.inventario(codigo);
+        assertEq(uint(estado), uint(TrazabilidadLogistica.EstadoInsumo.EnRetorno));
+        
+        (, , , uint256 fin, , , bool activo) = trazabilidad.incendios(1);
+        assertFalse(activo);
+        assertGt(fin, 0);
+    }
+
+    function testActualizarRiesgoIncendio() public {
+        vm.prank(jefe);
+        trazabilidad.abrirEventoIncendio("Coords", 1);
+
+        // Cambiar de 1 a 5
+        vm.prank(jefe);
+        vm.expectEmit(true, false, false, true);
+        emit TrazabilidadLogistica.RiesgoActualizado(1, 1, 5, jefe);
+        trazabilidad.actualizarRiesgoIncendio(1, 5);
+
+        (, , , , , uint256 riesgo, ) = trazabilidad.incendios(1);
+        assertEq(riesgo, 5);
+
+        // Verificar bitácora
+        (uint256 eventoID, , , , string memory detalles, ) = trazabilidad
+            .bitacoraEvento(1, 0);
+        assertEq(eventoID, 1);
+        assertEq(detalles, "Cambio de Nivel de Riesgo: 1 -> 5");
+    }
+
+    function testActualizarRiesgoPorBase() public {
+        vm.prank(jefe);
+        trazabilidad.abrirEventoIncendio("Coords", 2);
+
+        vm.prank(base);
+        trazabilidad.actualizarRiesgoIncendio(1, 3);
+        
+        (, , , , , uint256 riesgo, ) = trazabilidad.incendios(1);
+        assertEq(riesgo, 3);
+    }
+
+    function test_RevertWhen_ActualizarRiesgoSinRol() public {
+        vm.prank(jefe);
+        trazabilidad.abrirEventoIncendio("Coords", 1);
+
+        vm.prank(operador);
+        vm.expectRevert("No autorizado");
+        trazabilidad.actualizarRiesgoIncendio(1, 3);
+    }
+
+    function test_RevertWhen_ActualizarRiesgoInvalido() public {
         vm.prank(jefe);
         trazabilidad.abrirEventoIncendio("Coords", 1);
 
         vm.prank(jefe);
-        trazabilidad.cerrarIncidente(1);
-
-        (, , , uint256 fin, , , bool activo) = trazabilidad.incendios(1);
-        assertFalse(activo);
-        assertGt(fin, 0);
+        vm.expectRevert("Riesgo invalido");
+        trazabilidad.actualizarRiesgoIncendio(1, 6);
     }
 
     function test_RevertWhen_CerrarIncidentePorOperador() public {
@@ -299,7 +361,7 @@ contract TrazabilidadLogisticaTest is Test {
         );
     }
 
-    function testRetornoConAlertaConsumo() public {
+    function testRetornoConAlertaConsumoHandshake() public {
         vm.prank(base);
         bytes32 codigo = keccak256("ID-MB-EXP");
         trazabilidad.registrarInsumo(codigo, "Motobomba", 1000); // 1L/h
@@ -311,20 +373,28 @@ contract TrazabilidadLogisticaTest is Test {
 
         vm.warp(block.timestamp + 1 hours);
 
-        // Consumo esperado: 1000 ml
-        // Reporte: 2000 ml (Alerta!)
+        // Disparar retorno (simulamos cierre de incidente para ponerlo en EnRetorno)
+        vm.prank(jefe);
+        trazabilidad.cerrarIncidente(1);
+
+        // Paso 2: Auditoria de Base (Consumo real: 2000 ml -> Alerta!)
         vm.prank(base);
-        vm.expectEmit(true, true, false, true);
-        emit TrazabilidadLogistica.AlertaConsumo(0, codigo, 1000, 2000);
-        trazabilidad.retornarInsumo(
+        trazabilidad.registrarAuditoria(
             codigo,
             TrazabilidadLogistica.EstadoInsumo.Disponible,
             2000,
             "Gasolina extra"
         );
+
+        // Paso 3: Firma Brigadista (Aqui se procesan las alertas)
+        vm.expectEmit(true, true, false, true);
+        emit TrazabilidadLogistica.AlertaConsumo(0, codigo, 1000, 2000);
+        
+        vm.prank(operador);
+        trazabilidad.firmarDeslinde(codigo);
     }
 
-    function testRetornoConDiscrepanciaEstado() public {
+    function testRetornoConDiscrepanciaEstadoHandshake() public {
         vm.prank(base);
         bytes32 codigo = keccak256("ID-DISC");
         trazabilidad.registrarInsumo(codigo, "Equipo", 0);
@@ -342,19 +412,34 @@ contract TrazabilidadLogisticaTest is Test {
             TrazabilidadLogistica.EstadoReportado.Operativo
         );
 
+        // Brigadista inicia retorno manual (Anticipado)
+        vm.prank(operador);
+        trazabilidad.iniciarRetorno(codigo);
+
+        // Base audita y encuentra daño (Discrepancia con el Operativo reportado)
         vm.prank(base);
+        trazabilidad.registrarAuditoria(
+            codigo,
+            TrazabilidadLogistica.EstadoInsumo.Taller,
+            0,
+            unicode"Dañado fisicamente"
+        );
+
+        // Firma Brigadista acepta el Acta (Aqui saltan las discrepancias)
+        vm.prank(operador);
         vm.expectEmit(true, true, false, true);
         emit TrazabilidadLogistica.DiscrepanciaRegistrada(
             0,
             codigo,
             unicode"Dañado fisicamente"
         );
-        trazabilidad.retornarInsumo(
-            codigo,
-            TrazabilidadLogistica.EstadoInsumo.Taller,
-            0,
-            unicode"Dañado fisicamente"
-        );
+        trazabilidad.firmarDeslinde(codigo);
+    }
+
+    function test_RevertWhen_RetornarInsumoDeprecado() public {
+        vm.prank(base);
+        vm.expectRevert("Use el flujo de Handshake: registrarAuditoria + firmarDeslinde");
+        trazabilidad.retornarInsumo(bytes32(0), TrazabilidadLogistica.EstadoInsumo.Disponible, 0, "");
     }
 
     // --- 6. Tests de Pausa y Emergencia ---
@@ -432,14 +517,14 @@ contract TrazabilidadLogisticaTest is Test {
         (
             uint256 eventoID,
             bytes32 codigoInsumo,
-            address operador,
+            address op,
             ,
             string memory detalles,
 
         ) = trazabilidad.bitacoraEvento(1, 0);
         assertEq(eventoID, 1);
         assertEq(codigoInsumo, bytes32(0));
-        assertEq(operador, jefe);
+        assertEq(op, jefe);
         assertEq(
             detalles,
             '{"type":"pin", "latlng":[-1, -78], "pinType":"engine"}'
@@ -465,5 +550,50 @@ contract TrazabilidadLogisticaTest is Test {
         vm.prank(jefe);
         vm.expectRevert("Evento no activo");
         trazabilidad.registrarBitacoraTactica(1, "Ya cerro");
+    }
+
+    function testHitoRegistradoIndexedOperador() public {
+        vm.prank(base);
+        bytes32 codigo = keccak256("ID-INDEXED");
+        trazabilidad.registrarInsumo(codigo, "Test Evento", 0);
+
+        vm.prank(jefe);
+        trazabilidad.abrirEventoIncendio("0,0", 1);
+        vm.prank(jefe);
+        trazabilidad.asignarInsumo(1, codigo, operador);
+
+        // Verificar que el evento HitoRegistrado() emite el operador indexado
+        vm.expectEmit(true, true, true, true);
+        emit TrazabilidadLogistica.HitoRegistrado(1, codigo, operador, "Hito de prueba");
+        
+        vm.prank(operador);
+        trazabilidad.registrarHito(1, codigo, "Hito de prueba", TrazabilidadLogistica.EstadoReportado.Operativo);
+    }
+
+    function testHitoRegistradoEnRetornoYFirma() public {
+        vm.prank(base);
+        bytes32 codigo = keccak256("ID-HANDSHAKE-EVENT");
+        trazabilidad.registrarInsumo(codigo, "Insumo Eventos", 0);
+
+        vm.prank(jefe);
+        trazabilidad.abrirEventoIncendio("0,0", 1);
+        vm.prank(jefe);
+        trazabilidad.asignarInsumo(1, codigo, operador);
+
+        // 1. Evento en iniciarRetorno
+        vm.expectEmit(true, true, true, true);
+        emit TrazabilidadLogistica.HitoRegistrado(1, codigo, operador, "Retorno Anticipado: El equipo va de vuelta a base antes del cierre.");
+        vm.prank(operador);
+        trazabilidad.iniciarRetorno(codigo);
+
+        // 2. Preparar auditoria
+        vm.prank(base);
+        trazabilidad.registrarAuditoria(codigo, TrazabilidadLogistica.EstadoInsumo.Disponible, 0, "OK");
+
+        // 3. Evento en firmarDeslinde
+        vm.expectEmit(true, true, true, true);
+        emit TrazabilidadLogistica.HitoRegistrado(1, codigo, operador, "Acta de Devolucion Firmada: Insumo Eventos");
+        vm.prank(operador);
+        trazabilidad.firmarDeslinde(codigo);
     }
 }

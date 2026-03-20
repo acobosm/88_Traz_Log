@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { ethers } from 'ethers';
 
 // Fix para los iconos de Leaflet en entornos bundling (Vite)
 delete L.Icon.Default.prototype._getIconUrl;
@@ -10,7 +11,7 @@ L.Icon.Default.mergeOptions({
     shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.3.1/images/marker-shadow.png',
 });
 
-const TacticalPanel = ({ eventoId, coordenadas, contract, onBack, onGenerateReport, inventory, personnel }) => {
+const TacticalPanel = ({ eventoId, coordenadas, riesgo, contract, onBack, onGenerateReport, inventory, personnel }) => {
     const mapRef = useRef(null);
     const mapInstance = useRef(null);
     const [status, setStatus] = useState('LISTO');
@@ -23,6 +24,8 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack, onGenerateRepo
     const [isActivo, setIsActivo] = useState(true);
     const [showV360, setShowV360] = useState(false);
     const [selectedHito, setSelectedHito] = useState(null);
+    const [currentRiesgo, setCurrentRiesgo] = useState(riesgo || 1);
+    const [showRiskModal, setShowRiskModal] = useState(false);
     const [pinModal, setPinModal] = useState({ show: false, latlng: null, tool: null, options: [] });
     const [selectedPinOption, setSelectedPinOption] = useState('');
     const markerInstances = useRef({}); // Para el toggle de visibilidad
@@ -137,7 +140,7 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack, onGenerateRepo
                 }
             });
 
-            loadTacticalLogs();
+            loadTacticalLogs(mapInstance.current);
             checkIncidentStatus();
         }
 
@@ -165,8 +168,28 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack, onGenerateRepo
         try {
             const fire = await contract.incendios(BigInt(eventoId));
             setIsActivo(fire.activo);
+            setCurrentRiesgo(Number(fire.riesgo));
         } catch (error) {
             console.error("Error verificando estado:", error);
+        }
+    };
+
+    const actualizarRiesgo = async (nuevoRiesgo) => {
+        setLoading(true);
+        setStatus('ACTUALIZANDO RIESGO...');
+        try {
+            const tx = await contract.actualizarRiesgoIncendio(BigInt(eventoId), BigInt(nuevoRiesgo));
+            await tx.wait();
+            setCurrentRiesgo(nuevoRiesgo);
+            setShowRiskModal(false);
+            setStatus('RIESGO ACTUALIZADO');
+            setTimeout(() => setStatus('LISTO'), 2000);
+            await loadTacticalLogs(mapInstance.current); // Recargar bitácora para ver el cambio
+        } catch (error) {
+            alert(`Error: ${error.message}`);
+            setStatus('ERROR');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -188,14 +211,23 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack, onGenerateRepo
         }
     };
 
-    const loadTacticalLogs = async () => {
-        if (!contract) return;
+    const loadTacticalLogs = async (specificMap = null) => {
+        const targetMap = specificMap || mapInstance.current;
+        if (!contract || !targetMap) return;
+        
         try {
             const logs = await contract.obtenerLogEvento(BigInt(eventoId));
             const newMarkers = [];
             const newMilestones = [];
 
-            // Limpiamos las referencias de mapa viejas antes de repintar
+            // --- CORRECCIÓN: Limpiar marcadores físicos del mapa antes de repintar ---
+            if (markerInstances.current) {
+                Object.values(markerInstances.current).forEach(({ marker }) => {
+                    if (marker && targetMap.hasLayer(marker)) {
+                        marker.remove();
+                    }
+                });
+            }
             markerInstances.current = {};
 
             logs.forEach(log => {
@@ -205,7 +237,7 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack, onGenerateRepo
                         const data = JSON.parse(log.detalles);
                         if (data.type === 'pin') {
                             const label = (data.label || "").trim();
-                            addMapMarker(data.latlng, data.pinType, label, false);
+                            addMapMarker(data.latlng, data.pinType, label, false, data.fullLabel, targetMap);
                             newMarkers.push({ 
                                 label: label, 
                                 fullLabel: (data.fullLabel || label).trim(),
@@ -218,7 +250,8 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack, onGenerateRepo
                             newMilestones.push({
                                 timestamp: Number(log.timestamp),
                                 detalles: log.detalles,
-                                operador: log.operador
+                                operador: log.operador,
+                                codigoInsumo: log.codigoInsumo
                             });
                         }
                     } catch (e) {
@@ -233,8 +266,9 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack, onGenerateRepo
                     // Hitos vinculados a insumos (Fase 2)
                     newMilestones.push({
                         timestamp: Number(log.timestamp),
-                        detalles: `${log.detalles} | Insumo ${log.codigoInsumo.substring(0, 6)}...`,
-                        operador: log.operador
+                        detalles: log.detalles,
+                        operador: log.operador,
+                        codigoInsumo: log.codigoInsumo
                     });
                 }
             });
@@ -246,8 +280,9 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack, onGenerateRepo
         }
     };
 
-    const addMapMarker = (latlng, type, label, saveToBlockchain, fullLabel = null) => {
-        if (!mapInstance.current) return;
+    const addMapMarker = (latlng, type, label, saveToBlockchain, fullLabel = null, specificMap = null) => {
+        const targetMap = specificMap || mapInstance.current;
+        if (!targetMap) return;
 
         let color = '#dc2626';
         let iconName = 'fa-fire';
@@ -268,7 +303,7 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack, onGenerateRepo
             iconAnchor: [16, 16]
         });
 
-        const marker = L.marker(latlng, { icon }).addTo(mapInstance.current);
+        const marker = L.marker(latlng, { icon }).addTo(targetMap);
         marker.bindTooltip(label, { permanent: true, direction: 'bottom', className: 'custom-tooltip' });
         const tooltip = marker.getTooltip();
         
@@ -429,6 +464,29 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack, onGenerateRepo
                         </span>
                     </div>
 
+                    {/* Nivel de Riesgo Dinámico */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.2)', padding: '0.6rem 0.8rem', borderRadius: '4px', border: '1px solid #333' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                            <span style={{ fontSize: '0.7rem', color: '#888', fontWeight: 'bold' }}>RIESGO:</span>
+                            <div className={`status-pill risk-${currentRiesgo}`} style={{ fontSize: '0.7rem', fontWeight: 'bold' }}>
+                                {currentRiesgo === 1 && "BAJO"}
+                                {currentRiesgo === 2 && "MODERADO"}
+                                {currentRiesgo === 3 && "ALTO"}
+                                {currentRiesgo === 4 && "MUY ALTO"}
+                                {currentRiesgo === 5 && "EXTREMO"}
+                            </div>
+                        </div>
+                        {isActivo && (
+                            <button 
+                                onClick={() => setShowRiskModal(true)} 
+                                style={{ background: 'none', border: 'none', color: 'var(--accent-color)', cursor: 'pointer', fontSize: '0.8rem' }}
+                                title="Cambiar Nivel de Riesgo"
+                            >
+                                ✏️
+                            </button>
+                        )}
+                    </div>
+
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                         {isActivo && (
                             <button onClick={cerrarIncidente} className="btn-secondary" style={{ padding: '0.6rem 0.5rem', fontSize: '0.8rem', border: '1px solid #ff4444', color: '#ff4444', flex: 1, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
@@ -504,16 +562,24 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack, onGenerateRepo
                         {milestones.length === 0 ? (
                             <div style={{ color: '#555', fontSize: '0.7rem', fontStyle: 'italic' }}>Esperando reportes de campo...</div>
                         ) : (
-                            milestones.map((ms, i) => (
-                                <div key={i} style={{ fontSize: '0.65rem', borderBottom: '1px solid #222', paddingBottom: '0.3rem', position: 'relative' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                        <span style={{ color: 'var(--accent-color)' }}>[{new Date(ms.timestamp * 1000).toLocaleTimeString()}]</span>
-                                        <button onClick={() => setSelectedHito(ms)} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '0.9rem' }}>🔍</button>
+                            milestones.map((ms, i) => {
+                                const item = ms.codigoInsumo && ms.codigoInsumo !== ethers.ZeroHash ? inventory.find(i => i.hash === ms.codigoInsumo) : null;
+                                return (
+                                    <div key={i} style={{ fontSize: '0.65rem', borderBottom: '1px solid #222', paddingBottom: '0.3rem', position: 'relative' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                            <span style={{ color: 'var(--accent-color)' }}>[{new Date(ms.timestamp * 1000).toLocaleTimeString()}]</span>
+                                            <button onClick={() => setSelectedHito(ms)} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '0.9rem' }}>🔍</button>
+                                        </div>
+                                        <div style={{ color: '#fff', paddingRight: '1rem' }}>
+                                            {item && <span style={{ color: 'var(--accent-color)', fontWeight: 'bold' }}>[{item.serialId}] </span>}
+                                            {ms.detalles.length > 50 ? ms.detalles.substring(0, 50) + '...' : ms.detalles}
+                                        </div>
+                                        <div style={{ color: '#666', fontSize: '0.6rem' }}>
+                                            Op: {personnel.find(p => p.address.toLowerCase() === ms.operador.toLowerCase())?.name || ms.operador.substring(0, 8) + '...'}
+                                        </div>
                                     </div>
-                                    <div style={{ color: '#fff', paddingRight: '1rem' }}>{ms.detalles.length > 50 ? ms.detalles.substring(0, 50) + '...' : ms.detalles}</div>
-                                    <div style={{ color: '#666', fontSize: '0.6rem' }}>Op: {ms.operador.substring(0, 8)}...</div>
-                                </div>
-                            ))
+                                );
+                            })
                         )}
                     </div>
                 </div>
@@ -544,12 +610,35 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack, onGenerateRepo
                             <h3 style={{ fontSize: '0.9rem', color: 'var(--accent-color)' }}>Detalle de Hito</h3>
                             <button onClick={() => setSelectedHito(null)} className="btn-secondary" style={{ padding: '0.2rem 0.5rem' }}>×</button>
                         </div>
-                        <div style={{ background: '#000', padding: '1rem', borderRadius: '4px', border: '1px solid #333', maxHeight: '300px', overflowY: 'auto' }}>
-                            <pre style={{ whiteSpace: 'pre-wrap', fontSize: '0.8rem', margin: 0 }}>{selectedHito.detalles}</pre>
+                        <div style={{ background: '#000', padding: '1.2rem', borderRadius: '8px', border: '1px solid #333', maxHeight: '300px', overflowY: 'auto', marginBottom: '1rem' }}>
+                            <div style={{ fontSize: '1rem', color: '#fff', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>{selectedHito.detalles}</div>
                         </div>
-                        <div style={{ marginTop: '1rem', fontSize: '0.7rem', color: '#666' }}>
-                            Operador: {selectedHito.operador}<br />
-                            Fecha: {new Date(selectedHito.timestamp * 1000).toLocaleString()}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', padding: '1rem', background: 'rgba(255,165,0,0.05)', borderRadius: '8px', border: '1px solid rgba(255,165,0,0.1)' }}>
+                            <div>
+                                <label style={{ fontSize: '0.65rem', color: 'var(--accent-color)', display: 'block', fontWeight: 'bold' }}>OPERADOR:</label>
+                                <div style={{ fontSize: '0.9rem', color: '#eee', fontWeight: 'bold' }}>
+                                    {personnel.find(p => p.address.toLowerCase() === selectedHito.operador.toLowerCase())?.name || selectedHito.operador.substring(0, 10) + '...'}
+                                </div>
+                            </div>
+                            <div>
+                                <label style={{ fontSize: '0.65rem', color: 'var(--accent-color)', display: 'block', fontWeight: 'bold' }}>RECURSO:</label>
+                                <div style={{ fontSize: '0.9rem', color: '#eee', fontWeight: 'bold' }}>
+                                    {selectedHito.codigoInsumo && selectedHito.codigoInsumo !== ethers.ZeroHash ? 
+                                        (inventory.find(i => i.hash === selectedHito.codigoInsumo)?.descripcion || 'Insumo Táctico') : 
+                                        'Mando / Jefe Escena'}
+                                </div>
+                            </div>
+                            <div style={{ gridColumn: 'span 2', marginTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.5rem' }}>
+                                <label style={{ fontSize: '0.65rem', color: 'var(--accent-color)', display: 'block', fontWeight: 'bold' }}>FECHA Y HORA:</label>
+                                <div style={{ fontSize: '0.8rem', color: '#999' }}>
+                                    {new Date(selectedHito.timestamp * 1000).toLocaleString()}
+                                </div>
+                                {selectedHito.codigoInsumo && selectedHito.codigoInsumo !== ethers.ZeroHash && (
+                                    <div style={{ fontSize: '0.6rem', color: '#444', marginTop: '0.3rem', fontFamily: 'monospace' }}>
+                                        Hash: {selectedHito.codigoInsumo.substring(0, 16)}...
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -562,7 +651,9 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack, onGenerateRepo
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #333', padding: '1rem 1.5rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                 <span style={{ fontSize: '1.5rem' }}>📋</span>
-                                <h3 style={{ margin: 0, letterSpacing: '1px' }}>RESUMEN DEL EVENTO</h3>
+                                <h3 style={{ margin: 0, letterSpacing: '1px' }}>
+                                    RESUMEN DEL EVENTO: <span style={{ color: 'var(--accent-color)' }}>ID-INC{eventoId.padStart(3, '0')}</span>
+                                </h3>
                             </div>
                             <button onClick={() => setShowV360(false)} className="btn-secondary" style={{ padding: '0.2rem 0.6rem' }}>×</button>
                         </div>
@@ -599,25 +690,68 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack, onGenerateRepo
                             <div>
                                 <h4 style={{ fontSize: '0.8rem', color: 'var(--accent-color)', borderLeft: '3px solid var(--accent-color)', paddingLeft: '0.5rem', marginBottom: '0.8rem', letterSpacing: '1px' }}>ÚLTIMOS HITOS REGISTRADOS</h4>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    {milestones.slice(0, 10).map((ms, i) => {
+                                    {milestones.slice(0, 20).map((ms, i) => {
+                                        const item = ms.codigoInsumo && ms.codigoInsumo !== ethers.ZeroHash ? inventory.find(i => i.hash === ms.codigoInsumo) : null;
+                                        const opName = personnel.find(p => p.address.toLowerCase() === ms.operador.toLowerCase())?.name || ms.operador.substring(0, 8) + '...';
+                                        
                                         let hitoText = ms.detalles;
+                                        let isPin = false;
                                         try {
                                             const parsed = JSON.parse(ms.detalles);
                                             if (parsed.type === 'pin') {
                                                 const pinCoords = parsed.latlng ? `[${parsed.latlng.lat.toFixed(4)}, ${parsed.latlng.lng.toFixed(4)}]` : '';
-                                                hitoText = `📍 ${parsed.fullLabel || parsed.label} (${parsed.pinType.toUpperCase()}) ${pinCoords}`;
+                                                hitoText = `${parsed.fullLabel || parsed.label} (${parsed.pinType.toUpperCase()}) ${pinCoords}`;
+                                                isPin = true;
                                             } else if (parsed.text) {
                                                 hitoText = parsed.text;
                                             }
                                         } catch (e) { }
 
                                         return (
-                                            <div key={i} style={{ background: 'rgba(255,255,255,0.02)', padding: '0.6rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--accent-color)', marginBottom: '0.2rem' }}>
-                                                    <span>{new Date(ms.timestamp * 1000).toLocaleTimeString()}</span>
-                                                    <span style={{ color: '#666' }}>Op: {ms.operador.substring(0, 6)}...</span>
+                                            <div key={i} style={{ background: 'rgba(255,255,255,0.02)', padding: '0.8rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                        <span style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--accent-color)', letterSpacing: '0.5px' }}>
+                                                            Op: {opName}
+                                                        </span>
+                                                        <span style={{ fontSize: '0.65rem', color: '#666' }}>{new Date(ms.timestamp * 1000).toLocaleString()}</span>
+                                                    </div>
+                                                    {isPin ? (
+                                                        <span style={{ fontSize: '0.65rem', color: '#4444ff', background: 'rgba(68,68,255,0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid rgba(68,68,255,0.2)', fontWeight: 'bold' }}>
+                                                            📍 PUNTO TÁCTICO
+                                                        </span>
+                                                    ) : item ? (
+                                                        <span style={{ fontSize: '0.65rem', color: '#ff8c00', background: 'rgba(255,140,0,0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid rgba(255,140,0,0.2)', fontWeight: 'bold' }}>
+                                                            📦 {item.serialId} - {item.descripcion}
+                                                        </span>
+                                                    ) : null}
                                                 </div>
-                                                <div style={{ fontSize: '0.75rem', color: '#fff', lineHeight: '1.4' }}>{hitoText}</div>
+                                                <div style={{ fontSize: '0.85rem', color: '#eee', lineHeight: '1.5', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '0.4rem' }}>
+                                                    {hitoText.includes('[ESTADO:') && (
+                                                        <div style={{ marginBottom: '0.4rem' }}>
+                                                            <span style={{ 
+                                                                background: hitoText.includes('PERDIDO') ? '#a333c8' : 
+                                                                            hitoText.includes('DAÑO CRÍTICO') ? '#ff4d4d' : 
+                                                                            hitoText.includes('DAÑO MENOR') ? '#ffcc00' : '#4dff4d', 
+                                                                color: hitoText.includes('DAÑO MENOR') ? '#000' : '#fff', 
+                                                                padding: '0.1rem 0.5rem', 
+                                                                borderRadius: '4px', 
+                                                                fontSize: '0.7rem', 
+                                                                fontWeight: 'bold' 
+                                                            }}>
+                                                                {hitoText.match(/\[ESTADO: (.*?)\]/)?.[0] || 'REPORTE DE ESTADO'}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    {(hitoText.includes('Daño Crítico') || hitoText.includes('Daño Critico')) && !hitoText.includes('[ESTADO:') && (
+                                                        <div style={{ marginBottom: '0.4rem' }}>
+                                                            <span style={{ background: '#ff4d4d', color: '#fff', padding: '0.1rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                                                                ⚠️ REPORTE DE DAÑO CRÍTICO
+                                                                </span>
+                                                        </div>
+                                                    )}
+                                                    {hitoText.replace(/\[ESTADO: .*?\] /, '')}
+                                                </div>
                                             </div>
                                         );
                                     })}
@@ -680,6 +814,38 @@ const TacticalPanel = ({ eventoId, coordenadas, contract, onBack, onGenerateRepo
                                     setPinModal({ show: false, latlng: null, tool: null, options: [] });
                                     setSelectedPinOption('');
                                 }}
+                            >
+                                CANCELAR
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL CAMBIO DE RIESGO */}
+            {showRiskModal && (
+                <div className="v360-modal-overlay">
+                    <div className="v360-modal-content card" style={{ padding: '2rem', maxWidth: '400px', textAlign: 'center' }}>
+                        <h3 style={{ color: 'var(--accent-color)' }}>CAMBIO DE NIVEL DE RIESGO</h3>
+                        <p style={{ fontSize: '0.8rem', color: '#ccc', marginBottom: '1.5rem' }}>Especifique la nueva criticidad del evento en la blockchain.</p>
+                        
+                        <select 
+                            value={currentRiesgo} 
+                            onChange={(e) => actualizarRiesgo(Number(e.target.value))} 
+                            disabled={loading}
+                            style={{ width: '100%', padding: '0.8rem', marginBottom: '1.5rem', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }}
+                        >
+                            <option value="1">1 - Bajo</option>
+                            <option value="2">2 - Moderado</option>
+                            <option value="3">3 - Alto</option>
+                            <option value="4">4 - Muy Alto</option>
+                            <option value="5">5 - Extremo</option>
+                        </select>
+
+                        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                            <button 
+                                className="btn btn-secondary" 
+                                onClick={() => setShowRiskModal(false)}
                             >
                                 CANCELAR
                             </button>
