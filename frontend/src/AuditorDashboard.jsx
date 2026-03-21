@@ -76,101 +76,136 @@ const AuditorDashboard = ({ contract, inventory, personnel, incidents, hardRefre
             {/* LISTADO DE INCIDENTES PARA REPORTE MAESTRO */}
             <div className="card">
                 <h3 style={{ borderLeft: '4px solid #3296ff', paddingLeft: '1rem', marginBottom: '1.5rem' }}>📑 HISTORIAL DE INCIDENTES (REPORTES MAESTROS)</h3>
-                <div style={{ display: 'grid', gap: '1rem' }}>
-                    {incidents.map(fire => (
-                        <div key={fire.id} className="status-badge" style={{ justifyContent: 'space-between', padding: '1rem' }}>
-                            <div>
-                                <span style={{ fontWeight: 'bold', color: '#3296ff' }}>ID-INC{fire.id.padStart(3, '0')}</span>
-                                <span style={{ margin: '0 0.5rem', opacity: 0.3 }}>|</span>
-                                <span style={{ fontSize: '0.85rem' }}>{fire.coords}</span>
-                                {!fire.activo && <span style={{ marginLeft: '1rem', color: '#888', fontSize: '0.7rem' }}>[CERRADO]</span>}
-                            </div>
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <button 
-                                    className="btn btn-secondary" 
-                                    style={{ fontSize: '0.7rem' }}
-                                    onClick={async () => {
-                                        const eventId = BigInt(fire.id);
-                                        const rawLogs = await contract.obtenerLogEvento(eventId);
-                                        const formatted = rawLogs.map(l => ({
-                                            timestamp: Number(l.timestamp),
-                                            operador: l.operador,
-                                            codigoInsumo: l.codigoInsumo,
-                                            detalles: l.detalles
-                                        }));
+                <div style={{ display: 'grid', gap: '1.5rem' }}>
+                    {incidents.map(fire => {
+                        const isClosed = !fire.activo;
+                        return (
+                            <div key={fire.id} className="card-mini" style={{ padding: '1.2rem', border: isClosed ? '1px solid rgba(50, 150, 255, 0.3)' : '1px solid #333' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                    <div>
+                                        <span style={{ fontWeight: 'bold', color: '#3296ff', fontSize: '1.1rem' }}>ID-INC{fire.id.padStart(3, '0')}</span>
+                                        <span style={{ margin: '0 0.8rem', opacity: 0.2 }}>|</span>
+                                        <span style={{ fontSize: '0.9rem' }}>{fire.coords}</span>
+                                        {!fire.activo && <span className="status-pill risk-1" style={{ marginLeft: '1rem', fontSize: '0.6rem' }}>FINALIZADO / ARCHIVADO</span>}
+                                    </div>
+                                    <button 
+                                        className="btn btn-secondary" 
+                                        style={{ fontSize: '0.75rem', padding: '0.5rem 1rem' }}
+                                        onClick={async () => {
+                                            const eventId = BigInt(fire.id);
+                                            const rawLogs = await contract.obtenerLogEvento(eventId);
+                                            const formatted = rawLogs.map(l => ({
+                                                timestamp: Number(l.timestamp),
+                                                operador: l.operador,
+                                                codigoInsumo: l.codigoInsumo,
+                                                detalles: l.detalles
+                                            }));
 
-                                        // Obtener asignaciones históricas de la Blockchain
-                                        const historicAssignments = {};
-                                        try {
-                                            const assignmentFilter = contract.filters.InsumoAsignado(eventId);
-                                            const assignmentEvents = await contract.queryFilter(assignmentFilter, 0);
-                                            assignmentEvents.forEach(evt => {
-                                                const insumoHash = evt.args[1];
-                                                const brigadistaAddr = evt.args[2].toLowerCase();
-                                                if (!historicAssignments[brigadistaAddr]) historicAssignments[brigadistaAddr] = [];
-                                                if (!historicAssignments[brigadistaAddr].some(i => i.hash === insumoHash)) {
+                                            const historicAssignments = {};
+                                            try {
+                                                const assignmentFilter = contract.filters.InsumoAsignado(eventId);
+                                                const assignmentEvents = await contract.queryFilter(assignmentFilter, 0);
+                                                assignmentEvents.forEach(evt => {
+                                                    const insumoHash = evt.args[1];
+                                                    const brigadistaAddr = evt.args[2].toLowerCase();
+                                                    if (!historicAssignments[brigadistaAddr]) historicAssignments[brigadistaAddr] = [];
                                                     const item = inventory.find(inv => inv.hash === insumoHash);
-                                                    if (item) historicAssignments[brigadistaAddr].push(item);
+                                                    if (item && !historicAssignments[brigadistaAddr].some(i => i.hash === insumoHash)) {
+                                                        historicAssignments[brigadistaAddr].push(item);
+                                                    }
+                                                });
+                                            } catch (e) { console.error(e); }
+
+                                            const allLogs = [...formatted];
+                                            try {
+                                                const allIncidentHashes = Object.values(historicAssignments).flat().map(i => i.hash);
+                                                const discFilter = contract.filters.DiscrepanciaRegistrada();
+                                                const discEvents = await contract.queryFilter(discFilter, 0);
+                                                const retFilter = contract.filters.InsumoRetornado();
+                                                const retEvents = await contract.queryFilter(retFilter, 0);
+                                                const consFilter = contract.filters.AlertaConsumo();
+                                                const consEvents = await contract.queryFilter(consFilter, 0);
+
+                                                const estadoLabels = ["Disponible", "En Uso", "Taller", "Perdido", "En Retorno"];
+
+                                                for (const evt of retEvents) {
+                                                    const insumoHash = evt.args[0];
+                                                    if (allIncidentHashes.includes(insumoHash)) {
+                                                        const block = await evt.getBlock();
+                                                        const disc = discEvents.find(d => d.args[1] === insumoHash && Math.abs(d.blockNumber - evt.blockNumber) < 10);
+                                                        allLogs.push({
+                                                            timestamp: block.timestamp,
+                                                            operador: "MANDO BASE OPERATIVA",
+                                                            detalles: `Firma Recepción Base: Recurso retornado con estado [${estadoLabels[Number(evt.args[1])] || 'Desconocido'}]. ${disc ? `Discrepancia: ${disc.args[2]}` : 'Recibido conforme.'}`,
+                                                            codigoInsumo: insumoHash
+                                                        });
+                                                    }
                                                 }
-                                            });
-                                        } catch (e) { console.error("Error fetching historic assignments:", e); }
 
-                                        // Inyectar Alertas de Discrepancia y Consumo
-                                        const allLogs = [...formatted];
-                                        try {
-                                            const allIncidentHashes = Object.values(historicAssignments).flat().map(i => i.hash);
-                                            
-                                            // 1. Discrepancias y Recepción (Firma Base Operativa)
-                                            const discFilter = contract.filters.DiscrepanciaRegistrada();
-                                            const discEvents = await contract.queryFilter(discFilter, 0);
-
-                                            const retFilter = contract.filters.InsumoRetornado();
-                                            const retEvents = await contract.queryFilter(retFilter, 0);
-
-                                            const estadoLabels = ["Disponible", "En Uso", "Taller", "Perdido", "En Retorno"];
-
-                                            for (const evt of retEvents) {
-                                                const insumoHash = evt.args[0];
-                                                if (allIncidentHashes.includes(insumoHash)) {
-                                                    const block = await evt.getBlock();
-                                                    const disc = discEvents.find(d => d.args[1] === insumoHash && Math.abs(d.blockNumber - evt.blockNumber) < 10);
-                                                    
-                                                    allLogs.push({
-                                                        timestamp: block.timestamp,
-                                                        operador: "MANDO BASE OPERATIVA",
-                                                        detalles: `Firma Recepción Base: Recurso retornado con estado [${estadoLabels[Number(evt.args[1])] || 'Desconocido'}]. ${disc ? `Discrepancia: ${disc.args[2]}` : 'Recibido conforme.'}`,
-                                                        codigoInsumo: insumoHash
-                                                    });
+                                                for (const evt of consEvents) {
+                                                    const insumoHash = evt.args[1];
+                                                    if (allIncidentHashes.includes(insumoHash)) {
+                                                        const block = await evt.getBlock();
+                                                        allLogs.push({
+                                                            timestamp: block.timestamp,
+                                                            operador: "SISTEMA DE AUDITORÍA",
+                                                            detalles: `⚠️ ALERTA DE CONSUMO: Real ${evt.args[3]} vs Máx Esperado ${evt.args[2]}`,
+                                                            codigoInsumo: insumoHash
+                                                        });
+                                                    }
                                                 }
-                                            }
+                                            } catch (e) { console.error(e); }
 
-                                            // 2. Alertas de Consumo
-                                            const consFilter = contract.filters.AlertaConsumo();
-                                            const consEvents = await contract.queryFilter(consFilter, 0);
-                                            for (const evt of consEvents) {
-                                                const insumoHash = evt.args[1];
-                                                if (allIncidentHashes.includes(insumoHash)) {
-                                                    const block = await evt.getBlock();
-                                                    allLogs.push({
-                                                        timestamp: block.timestamp,
-                                                        operador: "SISTEMA DE AUDITORÍA",
-                                                        detalles: `⚠️ ALERTA DE CONSUMO: Real ${evt.args[3]} vs Máx Esperado ${evt.args[2]}`,
-                                                        codigoInsumo: insumoHash
-                                                    });
-                                                }
-                                            }
-                                        } catch (e) { console.error("Error fetching alerts:", e); }
+                                            const fullySorted = allLogs.sort((a, b) => b.timestamp - a.timestamp);
+                                            generarReportePDF(fire, fullySorted, historicAssignments);
+                                        }}
+                                    >
+                                        📥 DESCARGAR PDF
+                                    </button>
+                                </div>
 
-                                        // Ordenar cronológicamente descendente (más reciente arriba)
-                                        const fullySorted = allLogs.sort((a, b) => b.timestamp - a.timestamp);
-                                        generarReportePDF(fire, fullySorted, historicAssignments);
-                                    }}
-                                >
-                                    📥 DESCARGAR BITÁCORA
-                                </button>
+                                {isClosed && (
+                                    <div style={{ background: 'rgba(50, 150, 255, 0.03)', padding: '1rem', borderRadius: '8px', border: '1px dotted rgba(50, 150, 255, 0.2)' }}>
+                                        <h4 style={{ fontSize: '0.75rem', color: '#3296ff', marginBottom: '0.8rem', letterSpacing: '1px' }}>✍️ CONCLUSIÓN PERICIAL (BLOCKCHAIN)</h4>
+                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                            <input 
+                                                type="text" 
+                                                id={`report-${fire.id}`}
+                                                className="skin-select" 
+                                                placeholder="Escriba las conclusiones inmutables del incidente..."
+                                                style={{ flex: 1, backgroundImage: 'none', background: 'rgba(0,0,0,0.5)', fontSize: '0.8rem' }}
+                                            />
+                                            <button 
+                                                className="btn" 
+                                                style={{ fontSize: '0.75rem', minWidth: '120px' }}
+                                                onClick={async () => {
+                                                    const input = document.getElementById(`report-${fire.id}`);
+                                                    const report = input.value;
+                                                    if (!report) return alert("Ingrese el contenido del reporte");
+                                                    try {
+                                                        setLoading(true);
+                                                        const tx = await contract.registrarReporteAuditoria(BigInt(fire.id), report);
+                                                        await tx.wait();
+                                                        alert("¡Peritaje registrado exitosamente en la Blockchain!");
+                                                        input.value = "";
+                                                        hardRefresh();
+                                                    } catch (err) {
+                                                        console.error(err);
+                                                        alert("Error al registrar reporte: " + (err.reason || err.message));
+                                                    } finally {
+                                                        setLoading(false);
+                                                    }
+                                                }}
+                                                disabled={loading}
+                                            >
+                                                {loading ? '...' : 'FIRMADO'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </div>
 

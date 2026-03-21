@@ -17,6 +17,9 @@ contract TrazabilidadLogisticaTest is Test {
         keccak256("BASE_OPERATIVA_ROLE");
     bytes32 public constant JEFE_ESCENA_ROLE = keccak256("JEFE_ESCENA_ROLE");
     bytes32 public constant OPERADOR_ROLE = keccak256("OPERADOR_ROLE");
+    bytes32 public constant AUDITOR_ROLE = keccak256("AUDITOR_ROLE");
+
+    address public nanami = address(6);
 
     function setUp() public {
         vm.prank(admin);
@@ -26,21 +29,27 @@ contract TrazabilidadLogisticaTest is Test {
         vm.startPrank(admin);
         trazabilidad.registrarPersonal(
             base,
-            "Base Central",
+            "Alice Liang",
             "Logistica",
             BASE_OPERATIVA_ROLE
         );
         trazabilidad.registrarPersonal(
             jefe,
-            "Jefe Garcia",
+            "Tony Corleone",
             "Incendios",
             JEFE_ESCENA_ROLE
         );
         trazabilidad.registrarPersonal(
             operador,
-            "Operador Juan",
+            "Sung Jin-woo",
             "Combate",
             OPERADOR_ROLE
+        );
+        trazabilidad.registrarPersonal(
+            nanami,
+            "Kento Nanami",
+            "Auditor Forense",
+            AUDITOR_ROLE
         );
         vm.stopPrank();
     }
@@ -203,7 +212,7 @@ contract TrazabilidadLogisticaTest is Test {
 
         vm.prank(jefe);
         trazabilidad.abrirEventoIncendio("Coords", 1);
-        
+
         vm.prank(jefe);
         trazabilidad.asignarInsumo(1, codigo, operador);
 
@@ -212,9 +221,22 @@ contract TrazabilidadLogisticaTest is Test {
         trazabilidad.cerrarIncidente(1);
 
         // 3. Verificar estado EnRetorno automático
-        (,,,, TrazabilidadLogistica.EstadoInsumo estado,,,,) = trazabilidad.inventario(codigo);
-        assertEq(uint(estado), uint(TrazabilidadLogistica.EstadoInsumo.EnRetorno));
-        
+        (
+            ,
+            ,
+            ,
+            ,
+            TrazabilidadLogistica.EstadoInsumo estado,
+            ,
+            ,
+            ,
+
+        ) = trazabilidad.inventario(codigo);
+        assertEq(
+            uint(estado),
+            uint(TrazabilidadLogistica.EstadoInsumo.EnRetorno)
+        );
+
         (, , , uint256 fin, , , bool activo) = trazabilidad.incendios(1);
         assertFalse(activo);
         assertGt(fin, 0);
@@ -246,7 +268,7 @@ contract TrazabilidadLogisticaTest is Test {
 
         vm.prank(base);
         trazabilidad.actualizarRiesgoIncendio(1, 3);
-        
+
         (, , , , , uint256 riesgo, ) = trazabilidad.incendios(1);
         assertEq(riesgo, 3);
     }
@@ -389,7 +411,7 @@ contract TrazabilidadLogisticaTest is Test {
         // Paso 3: Firma Brigadista (Aqui se procesan las alertas)
         vm.expectEmit(true, true, false, true);
         emit TrazabilidadLogistica.AlertaConsumo(0, codigo, 1000, 2000);
-        
+
         vm.prank(operador);
         trazabilidad.firmarDeslinde(codigo);
     }
@@ -438,8 +460,15 @@ contract TrazabilidadLogisticaTest is Test {
 
     function test_RevertWhen_RetornarInsumoDeprecado() public {
         vm.prank(base);
-        vm.expectRevert("Use el flujo de Handshake: registrarAuditoria + firmarDeslinde");
-        trazabilidad.retornarInsumo(bytes32(0), TrazabilidadLogistica.EstadoInsumo.Disponible, 0, "");
+        vm.expectRevert(
+            "Use el flujo de Handshake: registrarAuditoria + firmarDeslinde"
+        );
+        trazabilidad.retornarInsumo(
+            bytes32(0),
+            TrazabilidadLogistica.EstadoInsumo.Disponible,
+            0,
+            ""
+        );
     }
 
     // --- 6. Tests de Pausa y Emergencia ---
@@ -564,10 +593,20 @@ contract TrazabilidadLogisticaTest is Test {
 
         // Verificar que el evento HitoRegistrado() emite el operador indexado
         vm.expectEmit(true, true, true, true);
-        emit TrazabilidadLogistica.HitoRegistrado(1, codigo, operador, "Hito de prueba");
-        
+        emit TrazabilidadLogistica.HitoRegistrado(
+            1,
+            codigo,
+            operador,
+            "Hito de prueba"
+        );
+
         vm.prank(operador);
-        trazabilidad.registrarHito(1, codigo, "Hito de prueba", TrazabilidadLogistica.EstadoReportado.Operativo);
+        trazabilidad.registrarHito(
+            1,
+            codigo,
+            "Hito de prueba",
+            TrazabilidadLogistica.EstadoReportado.Operativo
+        );
     }
 
     function testHitoRegistradoEnRetornoYFirma() public {
@@ -582,18 +621,83 @@ contract TrazabilidadLogisticaTest is Test {
 
         // 1. Evento en iniciarRetorno
         vm.expectEmit(true, true, true, true);
-        emit TrazabilidadLogistica.HitoRegistrado(1, codigo, operador, "Retorno Anticipado: El equipo va de vuelta a base antes del cierre.");
+        emit TrazabilidadLogistica.HitoRegistrado(
+            1,
+            codigo,
+            operador,
+            "Retorno Anticipado: El equipo va de vuelta a base antes del cierre."
+        );
         vm.prank(operador);
         trazabilidad.iniciarRetorno(codigo);
 
         // 2. Preparar auditoria
         vm.prank(base);
-        trazabilidad.registrarAuditoria(codigo, TrazabilidadLogistica.EstadoInsumo.Disponible, 0, "OK");
+        trazabilidad.registrarAuditoria(
+            codigo,
+            TrazabilidadLogistica.EstadoInsumo.Disponible,
+            0,
+            "OK"
+        );
 
         // 3. Evento en firmarDeslinde
         vm.expectEmit(true, true, true, true);
-        emit TrazabilidadLogistica.HitoRegistrado(1, codigo, operador, "Acta de Devolucion Firmada: Insumo Eventos");
+        emit TrazabilidadLogistica.HitoRegistrado(
+            1,
+            codigo,
+            operador,
+            "Acta de Devolucion Firmada: Insumo Eventos"
+        );
         vm.prank(operador);
         trazabilidad.firmarDeslinde(codigo);
+    }
+
+    function testRegistrarReporteAuditoria() public {
+        vm.prank(jefe);
+        trazabilidad.abrirEventoIncendio("0,0", 1);
+
+        // 1. Revertir si el incidente sigue activo
+        vm.prank(nanami);
+        vm.expectRevert("Incidente aun activo");
+        trazabilidad.registrarReporteAuditoria(1, "Conclusion Beta");
+
+        // 2. Cerrar incidente
+        vm.prank(jefe);
+        trazabilidad.cerrarIncidente(1);
+
+        // 3. Registrar reporte exitoso
+        vm.prank(nanami);
+        vm.expectEmit(true, true, true, true);
+        emit TrazabilidadLogistica.HitoRegistrado(
+            1,
+            bytes32(0),
+            nanami,
+            "Reporte Final V2"
+        );
+        trazabilidad.registrarReporteAuditoria(1, "Reporte Final V2");
+
+        // 4. Verificar bitácora
+        (
+            uint256 id,
+            bytes32 cod,
+            address op,
+            ,
+            string memory detalles,
+
+        ) = trazabilidad.bitacoraEvento(1, 1);
+        assertEq(id, 1);
+        assertEq(cod, bytes32(0));
+        assertEq(op, nanami);
+        assertEq(detalles, "PERITAJE FINAL AUDITORIA: Reporte Final V2");
+    }
+
+    function test_RevertWhen_RegistrarReporteAuditoriaSinRol() public {
+        vm.prank(jefe);
+        trazabilidad.abrirEventoIncendio("0,0", 1);
+        vm.prank(jefe);
+        trazabilidad.cerrarIncidente(1);
+
+        vm.prank(operador);
+        vm.expectRevert();
+        trazabilidad.registrarReporteAuditoria(1, "Intento Fallido");
     }
 }

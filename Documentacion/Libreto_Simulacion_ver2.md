@@ -32,7 +32,12 @@
 3.  **Auditoría**: Alice (#1) recibe `ID-MB001`. Reporta **120 litros** (Esperado: 96L). **SISTEMA GENERA ALERTA (+25%)**.
 
 ### PASO 2.2: Cierre de Quito (ID-INC002)
-1.  **Cierre**: Aura (#1) cierra el incidente sin novedades críticas en equipo.
+1.  **Cierre**: Aura (#4) cierra el incidente sin novedades críticas en equipo.
+
+### PASO 2.3: REGISTRO MANUAL DE AUDITORES (SÁBADO NOCHE)
+1.  **Carga en Base Operativa**: Alice Liang (#1) registra a **Kento Nanami (#18)** y **Shino Asada (#19)** como personal (Rol inicial: Brigadista).
+2.  **Promoción de Administrador**: El usuario cambia a la **Cuenta #0 (Admin)**, accede al `AdminDashboard` y otorga el rol oficial de `🕵️ AUDITOR` pulsando el botón correspondiente en la lista de personal.
+3.  **Resultado**: Kento y Shino ya figuran como autoridades forenses y pueden acceder a sus dashboards especializados.
 
 ---
 
@@ -56,6 +61,10 @@
 2.  **Relevo de Mando**: Leslie (#5) transfiere el mando a **Aura Frasier (#4)**.
 3.  **Cierre**: Tras maniobras extremas, Aura cierra el incidente a las 14:00.
 
-### PASO 4.2: Peritaje Forense de Kento Nanami (#18)
-1.  **Acción**: Kento accede al panel V360 y revisa la trazabilidad completa del fin de semana.
-2.  **Sello Forense**: Kento firma el reporte global en la blockchain validando las alertas de Prosperina y Cuenca y el relevo táctico en Cotopaxi.
+### PASO 4.2: Peritaje Forense de Kento Nanami (#18) y Shino Asada (#19)
+1.  **Acción**: Ambos auditores acceden al panel de Auditoría y revisan la trazabilidad completa.
+2.  **Sello Forense de Kento Nanami**:
+    > "PERITAJE NANAMI: Se validan alertas en Prosperina (+25%) y Cuenca (+31%), atribuidas a alta demanda técnica. Trazabilidad transparente y deslinde legal firmado por brigadistas. Datos íntegros."
+3.  **Sello Forense de Shino Asada**:
+    > "REPORTE ASADA: Analizado incidente crítico INC-005. Relevo de mando Leslie-Aura ejecutado bajo protocolo SCI inmutable. Daño en GPS Pululahua registrado. Certifico 100% de cadena de custodia."
+4.  **Resultado**: Los reportes quedan grabados en la Blockchain como hitos finales, cerrando el ciclo de vida de los incidentes.

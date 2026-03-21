@@ -145,6 +145,7 @@ function App() {
     if (account && !loading && !isBaseOperativa && !isJefeEscena && !isAuditor && !isAdmin && personnel.length > 0) {
       const isOperador = personnel.some(p => p.address && p.address.toLowerCase() === account.toLowerCase());
       if (isOperador && currentView !== 'field') {
+        console.log("REDIRECCIÓN TÁCTICA: Usuario detectado en campo. Cambiando a vista de Brigadista.");
         setCurrentView('field');
       }
     }
@@ -571,12 +572,22 @@ function App() {
       const roleBase = await contract.BASE_OPERATIVA_ROLE()
       const roleJefe = await contract.JEFE_ESCENA_ROLE()
       const roleAuditor = await contract.AUDITOR_ROLE()
-      const hasRoleBase = await contract.hasRole(roleBase, sanitizedAddress)
-      const hasRoleJefe = await contract.hasRole(roleJefe, sanitizedAddress)
-      const hasRoleAuditor = await contract.hasRole(roleAuditor, sanitizedAddress)
-
       const adminRole = "0x0000000000000000000000000000000000000000000000000000000000000000"
-      const hasRoleAdmin = await contract.hasRole(adminRole, sanitizedAddress)
+
+      const [hasRoleBase, hasRoleJefe, hasRoleAuditor, hasRoleAdmin] = await Promise.all([
+        contract.hasRole(roleBase, sanitizedAddress),
+        contract.hasRole(roleJefe, sanitizedAddress),
+        contract.hasRole(roleAuditor, sanitizedAddress),
+        contract.hasRole(adminRole, sanitizedAddress)
+      ])
+
+      console.log("DIAGNÓSTICO DE ROLES [App.jsx]:", {
+        address: sanitizedAddress,
+        isBase: hasRoleBase,
+        isJefe: hasRoleJefe,
+        isAuditor: hasRoleAuditor,
+        isAdmin: hasRoleAdmin
+      })
 
       setIsBaseOperativa(hasRoleBase)
       setIsJefeEscena(hasRoleJefe)

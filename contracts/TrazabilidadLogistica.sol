@@ -533,6 +533,30 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
         revert("Use el flujo de Handshake: registrarAuditoria + firmarDeslinde");
     }
 
+    /**
+     * @dev Paso 4 del Handshake (Auditor): Cierre Forense del Incidente.
+     * Permite al Auditor registrar un informe final inmutable sobre la gestión del incidente.
+     * @param _eventoID ID del incidente a auditar.
+     * @param _reporte Texto con las conclusiones de la auditoría.
+     */
+    function registrarReporteAuditoria(
+        uint256 _eventoID,
+        string calldata _reporte
+    ) external onlyRole(AUDITOR_ROLE) whenNotPaused {
+        require(!incendios[_eventoID].activo, "Incidente aun activo");
+        
+        bitacoraEvento[_eventoID].push(LogOperativo({
+            eventoID: _eventoID,
+            codigoInsumo: bytes32(0),
+            operador: msg.sender,
+            timestamp: block.timestamp,
+            detalles: string.concat("PERITAJE FINAL AUDITORIA: ", _reporte),
+            esDiscrepancia: false
+        }));
+
+        emit HitoRegistrado(_eventoID, bytes32(0), msg.sender, _reporte);
+    }
+
 
     // --- Funciones de Vista ---
 

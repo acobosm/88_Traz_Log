@@ -18,6 +18,17 @@ Configuración detectada en config.js:
  - IP Conexión (Public): 192.168.100.9
 Arrancando Anvil...
 
+### 👥 Perfiles de Usuario (Roles Web3)
+El sistema ha sido diseñado bajo una arquitectura **RBAC (Role Based Access Control)** inmutable en la Blockchain, permitiendo una segregación clara de funciones críticas:
+
+| Perfil | Rol en Contrato | Responsable / Icono | Funciones Principales |
+| :--- | :--- | :--- | :--- |
+| **Administrador** | `DEFAULT_ADMIN_ROLE` | **Cuenta #0** (Rey) | Gobernanza, gestión de permisos, pausa de emergencia. |
+| **Base Operativa** | `BASE_OPERATIVA_ROLE` | **Alice Liang (#1)** | Registro de personal, carga de CSV, auditoría de consumo. |
+| **Jefe de Escena** | `JEFE_ESCENA_ROLE` | **Aura / Tony** | Apertura de incidentes, asignación táctica sobre el mapa. |
+| **Brigadista** | `OPERADOR_ROLE` | **Sung / Loyd** | Registro de hitos en campo, uso de equipo, firma de deslinde. |
+| **Auditor** | `AUDITOR_ROLE` | **Nanami / Shino** | Peritaje forense final, reporte de discrepancias inmutables. |
+
 
                              _   _
                             (_) | |
@@ -359,7 +370,7 @@ El proyecto escala de una gestión monobase a una arquitectura multinivel coordi
 - **Optimización de Campo**: Ajustes UX para movilidad y baja conectividad.
 
 
-## Fase 13: Ejecución de Simulación en Terreno (Libreto Dinámico)
+## Fase 7: Ejecución de Simulación en Terreno (Libreto Dinámico)
 
 Acompañamiento y registro de la operación "Fuego Inmutable", validando la trazabilidad de recursos bajo escenarios de estrés, daño y retorno.
 
@@ -373,5 +384,5 @@ Acompañamiento y registro de la operación "Fuego Inmutable", validando la traz
 
 ---
 
-## Fase 14: Cierre Audiado y Handshake Final
+## Fase 8: Cierre Audiado y Handshake Final
 ...
