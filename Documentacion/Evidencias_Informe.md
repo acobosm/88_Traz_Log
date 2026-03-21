@@ -23,7 +23,7 @@ El sistema ha sido diseñado bajo una arquitectura **RBAC (Role Based Access Con
 
 | Perfil | Rol en Contrato | Responsable / Icono | Funciones Principales |
 | :--- | :--- | :--- | :--- |
-| **Administrador** | `DEFAULT_ADMIN_ROLE` | **Cuenta #0** (Rey) | Gobernanza, gestión de permisos, pausa de emergencia. |
+| **Administrador** | `DEFAULT_ADMIN_ROLE` | **Cuenta #0** (Admin General) | Gobernanza, gestión de permisos, pausa de emergencia. |
 | **Base Operativa** | `BASE_OPERATIVA_ROLE` | **Alice Liang (#1)** | Registro de personal, carga de CSV, auditoría de consumo. |
 | **Jefe de Escena** | `JEFE_ESCENA_ROLE` | **Aura / Tony** | Apertura de incidentes, asignación táctica sobre el mapa. |
 | **Brigadista** | `OPERADOR_ROLE` | **Sung / Loyd** | Registro de hitos en campo, uso de equipo, firma de deslinde. |
