@@ -161,7 +161,7 @@ const BrigadistaDashboard = ({ personnel, inventory, incidents = [], contract, a
     <div className="dashboard-brigadista animate-fade-in" style={{ padding: '1rem', maxWidth: '600px', margin: '0 auto' }}>
       <header style={{ marginBottom: '1.5rem', textAlign: 'center', position: 'relative' }}>
         <h2 style={{ fontSize: '1.4rem', color: 'var(--accent-color)', margin: 0, textShadow: '0 0 10px rgba(255,165,0,0.3)' }}>🛡️ INTERFAZ DE CAMPO</h2>
-        <span style={{ fontSize: '0.7rem', color: '#666', letterSpacing: '2px', display: 'block' }}>V1.2 | OPERACIONES TÁCTICAS</span>
+        <span style={{ fontSize: '0.7rem', color: '#666', letterSpacing: '2px', display: 'block' }}>V1.1 | OPERACIONES TÁCTICAS</span>
         
         {onRefresh && (
           <button 
@@ -196,22 +196,39 @@ const BrigadistaDashboard = ({ personnel, inventory, incidents = [], contract, a
               </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{activeBrigadista.name}</h3>
-                <span style={{ fontSize: '0.7rem', color: '#888' }}>{activeBrigadista.specialty} | {activeBrigadista.address.substring(0, 10)}...</span>
+                <span style={{ fontSize: '0.7rem', color: '#888' }}>{activeBrigadista.specialty} | {activeBrigadista.address.slice(0, 7)}...{activeBrigadista.address.slice(-5)}</span>
               </div>
             </div>
 
             <div style={{ padding: '1rem', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', border: '1px solid #222' }}>
               <span style={{ fontSize: '0.7rem', color: '#666', display: 'block' }}>INCIDENTE ASIGNADO:</span>
               {assignedIncident ? (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
-                  <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#fff' }}>{assignedIncident.label}</span>
-                  <span 
-                    className={`status-pill risk-${assignedIncident.activo ? '3' : '1'}`} 
-                    style={{ fontSize: '0.6rem' }}
-                  >
-                    {assignedIncident.activo ? 'EN CURSO' : 'FINALIZADO'}
-                  </span>
-                </div>
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
+                    <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#fff' }}>{assignedIncident.label}</span>
+                    <span 
+                      className={`status-pill risk-${assignedIncident.activo ? '3' : '1'}`} 
+                      style={{ fontSize: '0.6rem' }}
+                    >
+                      {assignedIncident.activo ? 'EN CURSO' : 'FINALIZADO'}
+                    </span>
+                  </div>
+                  {assignedIncident && !assignedIncident.activo && myResources.length > 0 && (
+                    <div className="pulse-warning" style={{ 
+                      marginTop: '1rem', 
+                      padding: '0.8rem', 
+                      background: 'rgba(255,204,0,0.1)', 
+                      border: '1px solid #ffcc00', 
+                      borderRadius: '6px',
+                      color: '#ffcc00',
+                      textAlign: 'center',
+                      fontSize: '0.75rem',
+                      fontWeight: 'bold'
+                    }}>
+                      ⚠️ PENDIENTE DE DEVOLUCIÓN DE EQUIPO ASIGNADO
+                    </div>
+                  )}
+                </>
               ) : (
                 <span style={{ color: '#ff4444', fontWeight: 'bold', fontSize: '0.9rem' }}>SIN ASIGNACIÓN ACTIVA</span>
               )}
@@ -236,7 +253,7 @@ const BrigadistaDashboard = ({ personnel, inventory, incidents = [], contract, a
                       
                       <div style={{ fontSize: '0.75rem', color: '#aaa', marginBottom: '0.8rem' }}>
                         <div><strong>Resultado Auditoría:</strong> {item.auditoriaPendiente.estadoPropuesto === 0 ? '✅ Disponible' : item.auditoriaPendiente.estadoPropuesto === 2 ? '🛠️ Taller' : '❌ Baja'}</div>
-                        <div><strong>Consumo Registrado:</strong> {item.auditoriaPendiente.consumoReal} ml/litros</div>
+                        <div><strong>Consumo Registrado:</strong> {item.auditoriaPendiente.consumoReal} Litros</div>
                         {item.auditoriaPendiente.motivo && <div style={{ color: '#ffcc00', marginTop: '0.3rem' }}>📝 <em>"{item.auditoriaPendiente.motivo}"</em></div>}
                       </div>
 
@@ -396,6 +413,14 @@ const BrigadistaDashboard = ({ personnel, inventory, incidents = [], contract, a
           border: 2px solid var(--accent-color) !important;
           background: rgba(255,165,0,0.1) !important;
           color: #fff !important;
+        }
+        .pulse-warning {
+          animation: pulse-border 2s infinite;
+        }
+        @keyframes pulse-border {
+          0% { box-shadow: 0 0 0 0 rgba(255, 204, 0, 0.4); }
+          70% { box-shadow: 0 0 0 10px rgba(255, 204, 0, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(255, 204, 0, 0); }
         }
         .dashboard-brigadista select {
           -webkit-appearance: none;

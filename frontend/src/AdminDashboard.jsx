@@ -93,8 +93,9 @@ const AdminDashboard = ({ contract, account, personnel, onRefresh, setStatus }) 
     const getRoleName = (address) => {
         const p = personnel.find(per => per.address.toLowerCase() === address.toLowerCase());
         if (!p) return "SIN REGISTRO";
-        if (p.isJefe) return "JEFE DE ESCENA";
-        return "BRIGADISTA / OPERADOR";
+        if (p.isAuditor) return "🕵️ AUDITOR";
+        if (p.isJefe) return "👨‍🚒 JEFE DE ESCENA";
+        return "🏃 BRIGADISTA / OPERADOR";
     };
 
     return (
@@ -195,10 +196,15 @@ const AdminDashboard = ({ contract, account, personnel, onRefresh, setStatus }) 
                             {personnel.map((p, i) => (
                                 <tr key={p.address} style={{ borderBottom: '1px solid #222', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
                                     <td style={{ padding: '1rem', fontWeight: 'bold' }}>{p.name}</td>
-                                    <td style={{ padding: '1rem' }}><code style={{ color: '#666', fontSize: '0.8rem' }}>{p.address}</code></td>
+                                    <td style={{ padding: '1rem' }}><code style={{ color: '#666', fontSize: '0.8rem' }}>{p.address.slice(0, 7)}...{p.address.slice(-5)}</code></td>
                                     <td style={{ padding: '1rem' }}>
-                                        <span className="status-pill" style={{ fontSize: '0.65rem', background: p.isJefe ? 'rgba(255,140,0,0.1)' : 'rgba(0,150,255,0.1)', color: p.isJefe ? '#ff8c00' : '#0096ff', border: `1px solid ${p.isJefe ? '#ff8c00' : '#0096ff'}` }}>
-                                            {p.isJefe ? 'JEFE DE ESCENA' : 'OPERADOR'}
+                                        <span className="status-pill" style={{ 
+                                            fontSize: '0.65rem', 
+                                            background: p.isAuditor ? 'rgba(77, 255, 77, 0.1)' : (p.isJefe ? 'rgba(255,140,0,0.1)' : 'rgba(0,150,255,0.1)'), 
+                                            color: p.isAuditor ? '#00ff88' : (p.isJefe ? '#ff8c00' : '#0096ff'), 
+                                            border: `1px solid ${p.isAuditor ? '#00ff88' : (p.isJefe ? '#ff8c00' : '#0096ff')}` 
+                                        }}>
+                                            {p.isAuditor ? '🕵️ AUDITOR' : (p.isJefe ? '👨‍🚒 JEFE DE ESCENA' : '🏃 OPERADOR')}
                                         </span>
                                     </td>
                                     <td style={{ padding: '1rem', textAlign: 'right' }}>
@@ -213,14 +219,16 @@ const AdminDashboard = ({ contract, account, personnel, onRefresh, setStatus }) 
                                                     >
                                                         ⬆️ JEFE
                                                     </button>
-                                                    <button 
-                                                        className="btn btn-secondary" 
-                                                        style={{ fontSize: '0.7rem', padding: '0.4rem 0.8rem', border: '1px solid #4dff4d', color: '#4dff4d' }}
-                                                        onClick={() => handleUpdateRole(p.address, ROLES.AUDITOR_ROLE, 'GRANT')}
-                                                        disabled={loading}
-                                                    >
-                                                        🕵️ AUDITOR
-                                                    </button>
+                                                    {!p.isAuditor && (
+                                                        <button 
+                                                            className="btn btn-secondary" 
+                                                            style={{ fontSize: '0.7rem', padding: '0.4rem 0.8rem', border: '1px solid #4dff4d', color: '#4dff4d' }}
+                                                            onClick={() => handleUpdateRole(p.address, ROLES.AUDITOR_ROLE, 'GRANT')}
+                                                            disabled={loading}
+                                                        >
+                                                            🕵️ AUDITOR
+                                                        </button>
+                                                    )}
                                                 </>
                                             ) : (
                                                 <button 

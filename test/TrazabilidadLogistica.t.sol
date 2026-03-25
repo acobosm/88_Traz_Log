@@ -683,7 +683,7 @@ contract TrazabilidadLogisticaTest is Test {
             ,
             string memory detalles,
 
-        ) = trazabilidad.bitacoraEvento(1, 1);
+        ) = trazabilidad.bitacoraEvento(1, 0);
         assertEq(id, 1);
         assertEq(cod, bytes32(0));
         assertEq(op, nanami);

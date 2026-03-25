@@ -11,7 +11,19 @@ L.Icon.Default.mergeOptions({
     shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.3.1/images/marker-shadow.png',
 });
 
-const TacticalPanel = ({ eventoId, coordenadas, riesgo, contract, onBack, onGenerateReport, inventory, personnel }) => {
+const TZ_OFFSET = Number(import.meta.env.VITE_APP_TIMEZONE_OFFSET) || 0;
+
+const formatTime = (ts) => {
+    if (!ts || ts === 0) return "---";
+    const d = new Date((Number(ts) + (TZ_OFFSET * 3600)) * 1000);
+    const day = d.getUTCDate().toString().padStart(2, '0');
+    const month = (d.getUTCMonth() + 1).toString().padStart(2, '0');
+    const hours = d.getUTCHours().toString().padStart(2, '0');
+    const minutes = d.getUTCMinutes().toString().padStart(2, '0');
+    return `📅 ${day}/${month}/${d.getUTCFullYear()} ${hours}:${minutes}`;
+};
+
+const TacticalPanel = ({ eventoId, coordenadas, riesgo, contract, onBack, onGenerateReport, inventory, personnel, startTimeProp, endTimeProp, isActivoProp }) => {
     const mapRef = useRef(null);
     const mapInstance = useRef(null);
     const [status, setStatus] = useState('LISTO');
@@ -20,9 +32,17 @@ const TacticalPanel = ({ eventoId, coordenadas, riesgo, contract, onBack, onGene
     const toolRef = useRef(null);
     const [markers, setMarkers] = useState([]); // Lista para el radar de coordenadas
     const [milestones, setMilestones] = useState([]); // Lista para bitácora azul
+    const [fullLogs, setFullLogs] = useState([]); // Para el reporte PDF completo
     const [mapReady, setMapReady] = useState(false);
-    const [isActivo, setIsActivo] = useState(true);
+    const [isActivo, setIsActivo] = useState(isActivoProp ?? true);
+    const [startTime, setStartTime] = useState(startTimeProp ?? 0);
+    const [endTime, setEndTime] = useState(endTimeProp ?? 0);
     const [showV360, setShowV360] = useState(false);
+    const [expandedBrigadistas, setExpandedBrigadistas] = useState({});
+    const toggleBrigadista = (addr) => {
+        setExpandedBrigadistas(prev => ({ ...prev, [addr]: !prev[addr] }));
+    };
+
     const [selectedHito, setSelectedHito] = useState(null);
     const [currentRiesgo, setCurrentRiesgo] = useState(riesgo || 1);
     const [showRiskModal, setShowRiskModal] = useState(false);
@@ -43,6 +63,12 @@ const TacticalPanel = ({ eventoId, coordenadas, riesgo, contract, onBack, onGene
     useEffect(() => {
         toolRef.current = activeTool;
     }, [activeTool]);
+
+    useEffect(() => {
+        if (startTimeProp) setStartTime(Number(startTimeProp));
+        if (endTimeProp) setEndTime(Number(endTimeProp));
+        if (isActivoProp !== undefined) setIsActivo(isActivoProp);
+    }, [startTimeProp, endTimeProp, isActivoProp]);
 
     useEffect(() => {
         let isMounted = true;
@@ -97,7 +123,7 @@ const TacticalPanel = ({ eventoId, coordenadas, riesgo, contract, onBack, onGene
                             pItems.forEach(item => {
                                 // Short label formatting for the map pin
                                 const names = p.name.trim().split(' ');
-                                const shortName = names.length > 1 ? `${names[0].charAt(0)}. ${names[names.length - 1]}` : names[0];
+                                const shortName = names.length > 1 ? `${names[0].charAt(0)}. ${names[1].substring(0, 3)}` : names[0];
                                 const cleanLabel = `MTB-${shortName}`;
                                 const isPinned = markersRef.current.some(m => m.type === 'engine' && m.label === cleanLabel);
                                 if (!isPinned) motobombas.push({ label: cleanLabel, fullName: `${item.descripcion} (${p.name})` });
@@ -116,7 +142,7 @@ const TacticalPanel = ({ eventoId, coordenadas, riesgo, contract, onBack, onGene
                                 if (!hasMotobomba) {
                                     // Short label formatting for the map pin
                                     const names = p.name.trim().split(' ');
-                                    const shortName = names.length > 1 ? `${names[0].charAt(0)}. ${names[names.length - 1]}` : names[0];
+                                    const shortName = names.length > 1 ? `${names[0].charAt(0)}. ${names[1].substring(0, 3)}` : names[0];
                                     const cleanLabel = `BRG-${shortName}`;
                                     const isPinned = markersRef.current.some(m => m.type === 'crew' && m.label === cleanLabel);
                                     if (!isPinned) brigadas.push({ label: cleanLabel, fullName: `Brigadista: ${p.name} (${pItems.length} recursos)` });
@@ -169,6 +195,8 @@ const TacticalPanel = ({ eventoId, coordenadas, riesgo, contract, onBack, onGene
             const fire = await contract.incendios(BigInt(eventoId));
             setIsActivo(fire.activo);
             setCurrentRiesgo(Number(fire.riesgo));
+            setStartTime(Number(fire.timestampInicio));
+            setEndTime(Number(fire.timestampFin));
         } catch (error) {
             console.error("Error verificando estado:", error);
         }
@@ -216,7 +244,16 @@ const TacticalPanel = ({ eventoId, coordenadas, riesgo, contract, onBack, onGene
         if (!contract || !targetMap) return;
         
         try {
-            const logs = await contract.obtenerLogEvento(BigInt(eventoId));
+            const stateLogs = await contract.obtenerLogEvento(BigInt(eventoId));
+            
+            const logs = stateLogs.map(l => {
+                return {
+                    timestamp: Number(l.timestamp),
+                    detalles: l.detalles,
+                    operador: l.operador,
+                    codigoInsumo: l.codigoInsumo
+                };
+            });
             const newMarkers = [];
             const newMilestones = [];
 
@@ -243,7 +280,7 @@ const TacticalPanel = ({ eventoId, coordenadas, riesgo, contract, onBack, onGene
                                 fullLabel: (data.fullLabel || label).trim(),
                                 latlng: data.latlng, 
                                 type: data.pinType, 
-                                visible: true 
+                                visible: true
                             });
                         } else {
                             // Otros hitos de bitácora
@@ -255,7 +292,6 @@ const TacticalPanel = ({ eventoId, coordenadas, riesgo, contract, onBack, onGene
                             });
                         }
                     } catch (e) {
-                        // Si no es JSON, es un hito de texto plano
                         newMilestones.push({
                             timestamp: Number(log.timestamp),
                             detalles: log.detalles,
@@ -275,6 +311,7 @@ const TacticalPanel = ({ eventoId, coordenadas, riesgo, contract, onBack, onGene
 
             setMarkers(prev => [...prev.filter(m => m.type === 'origin'), ...newMarkers]);
             setMilestones(newMilestones.reverse());
+            setFullLogs([...logs].reverse());
         } catch (error) {
             console.error("Error cargando bitácora:", error);
         }
@@ -658,6 +695,7 @@ const TacticalPanel = ({ eventoId, coordenadas, riesgo, contract, onBack, onGene
                             <button onClick={() => setShowV360(false)} className="btn-secondary" style={{ padding: '0.2rem 0.6rem' }}>×</button>
                         </div>
 
+                        {/* [Modal_Resumen_Tactico] */}
                         <div style={{ overflowY: 'auto', padding: '1.5rem', flex: 1 }}>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem', marginBottom: '1.5rem', background: 'rgba(255,165,0,0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,165,0,0.1)' }}>
                                 <div>
@@ -666,11 +704,65 @@ const TacticalPanel = ({ eventoId, coordenadas, riesgo, contract, onBack, onGene
                                 </div>
                                 <div>
                                     <div style={{ color: 'var(--accent-color)', fontSize: '0.65rem', fontWeight: 'bold', letterSpacing: '1px' }}>ESTADO:</div>
-                                    <div style={{ fontSize: '0.9rem', fontWeight: '800', color: isActivo ? '#4dff4d' : '#ff4d4d' }}>{isActivo ? 'INCIDENTE EN CURSO' : 'INCIDENTE FINALIZADO'}</div>
+                                    <div style={{ fontSize: '1rem', fontWeight: '800', color: isActivo ? '#4dff4d' : '#ff4d4d' }}>{isActivo ? 'ACTIVO' : 'FINALIZADO'}</div>
                                 </div>
-                                <div style={{ gridColumn: 'span 2' }}>
-                                    <div style={{ color: 'var(--accent-color)', fontSize: '0.65rem', fontWeight: 'bold', letterSpacing: '1px' }}>COORDENADAS BASE:</div>
+                                <div>
+                                    <div style={{ color: 'var(--accent-color)', fontSize: '0.65rem', fontWeight: 'bold', letterSpacing: '1px' }}>COORDENADAS:</div>
                                     <div style={{ fontSize: '0.8rem', fontWeight: '600', color: '#ccc' }}>{coordenadas}</div>
+                                </div>
+                                <div style={{ textAlign: 'right' }}>
+                                    <div style={{ color: 'var(--accent-color)', fontSize: '0.65rem', fontWeight: 'bold', letterSpacing: '1px' }}>INICIO:</div>
+                                    <div style={{ fontSize: '0.8rem' }}>{formatTime(startTime)}</div>
+                                </div>
+                                {!isActivo && (
+                                    <div style={{ textAlign: 'right', background: 'rgba(255,0,0,0.05)', padding: '4px 8px', borderRadius: '4px', border: '1px solid rgba(255,0,0,0.1)' }}>
+                                        <div style={{ color: '#ff4d4d', fontSize: '0.65rem', fontWeight: 'bold', letterSpacing: '1px' }}>FIN:</div>
+                                        <div style={{ fontSize: '0.8rem', color: '#fff' }}>{formatTime(endTime)}</div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <h4 style={{ fontSize: '0.8rem', marginBottom: '1rem', borderLeft: '3px solid var(--accent-color)', paddingLeft: '0.5rem', color: 'var(--accent-color)', letterSpacing: '1px' }}>PERSONA Y RECURSOS ASIGNADOS</h4>
+                                <div style={{ display: 'grid', gap: '0.8rem' }}>
+                                    {personnel
+                                        .filter(p => p.incidente === `ID-INC${eventoId.padStart(3, '0')}`)
+                                        .map(p => {
+                                            const assignedItems = inventory.filter(item => item.custodio?.toLowerCase() === p.address?.toLowerCase() && item.estado === 1);
+                                            return (
+                                                <div key={p.address} style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: expandedBrigadistas[p.address] ? '0.8rem' : '0' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                                                            <span style={{ fontWeight: 'bold', fontSize: '1rem', color: 'var(--accent-color)' }}>{p.isJefe ? '👨‍🚒 Jefe:' : '👤'} {p.name}</span>
+                                                            <button 
+                                                                onClick={() => toggleBrigadista(p.address)}
+                                                                style={{ background: 'rgba(255,165,0,0.1)', border: '1px solid rgba(255,165,0,0.2)', color: 'var(--accent-color)', cursor: 'pointer', width: '22px', height: '22px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', fontWeight: 'bold' }}
+                                                            >
+                                                                {expandedBrigadistas[p.address] ? '−' : '+'}
+                                                            </button>
+                                                        </div>
+                                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', padding: '0.1rem 0.5rem', borderRadius: '4px' }}>{p.specialty}</span>
+                                                    </div>
+                                                    {expandedBrigadistas[p.address] && (
+                                                        <div style={{ display: 'grid', gap: '0.4rem', marginTop: '0.8rem', paddingTop: '0.8rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                                            {assignedItems.length > 0 ? assignedItems.map(item => (
+                                                                <div key={item.hash} style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.7rem', background: 'rgba(0,0,0,0.3)', padding: '0.5rem 0.8rem', borderRadius: '5px', border: '1px solid rgba(255,165,0,0.1)' }}>
+                                                                    <span style={{ color: 'var(--accent-color)' }}>📦</span>
+                                                                    <span style={{ fontWeight: '600', color: '#eee' }}>{item.descripcion}</span>
+                                                                    <span style={{ fontSize: '0.7rem', color: '#666', marginLeft: 'auto', fontFamily: 'monospace' }}>{item.serialId}</span>
+                                                                </div>
+                                                            )) : <span style={{ fontSize: '0.75rem', color: '#555', fontStyle: 'italic', paddingLeft: '1.5rem' }}>Sin recursos vinculados</span>}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )
+                                        })
+                                    }
+                                    {personnel.filter(p => p.incidente === `ID-INC${eventoId.padStart(3, '0')}`).length === 0 && (
+                                        <div style={{ textAlign: 'center', padding: '1.5rem', color: '#666', border: '1px dashed #333', borderRadius: '8px', background: 'rgba(0,0,0,0.1)', fontSize: '0.8rem' }}>
+                                            No se detecta personal asignado oficialmente a este incidente.
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -690,7 +782,12 @@ const TacticalPanel = ({ eventoId, coordenadas, riesgo, contract, onBack, onGene
                             <div>
                                 <h4 style={{ fontSize: '0.8rem', color: 'var(--accent-color)', borderLeft: '3px solid var(--accent-color)', paddingLeft: '0.5rem', marginBottom: '0.8rem', letterSpacing: '1px' }}>ÚLTIMOS HITOS REGISTRADOS</h4>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    {milestones.slice(0, 20).map((ms, i) => {
+                                    {milestones.filter(ms => {
+                                        try {
+                                            const parsed = JSON.parse(ms.detalles);
+                                            return parsed.type !== 'pin';
+                                        } catch (e) { return true; }
+                                    }).slice(0, 20).map((ms, i) => {
                                         const item = ms.codigoInsumo && ms.codigoInsumo !== ethers.ZeroHash ? inventory.find(i => i.hash === ms.codigoInsumo) : null;
                                         const opName = personnel.find(p => p.address.toLowerCase() === ms.operador.toLowerCase())?.name || ms.operador.substring(0, 8) + '...';
                                         
@@ -730,14 +827,21 @@ const TacticalPanel = ({ eventoId, coordenadas, riesgo, contract, onBack, onGene
                                                     {hitoText.includes('[ESTADO:') && (
                                                         <div style={{ marginBottom: '0.4rem' }}>
                                                             <span style={{ 
-                                                                background: hitoText.includes('PERDIDO') ? '#a333c8' : 
-                                                                            hitoText.includes('DAÑO CRÍTICO') ? '#ff4d4d' : 
-                                                                            hitoText.includes('DAÑO MENOR') ? '#ffcc00' : '#4dff4d', 
-                                                                color: hitoText.includes('DAÑO MENOR') ? '#000' : '#fff', 
-                                                                padding: '0.1rem 0.5rem', 
+                                                                background: hitoText.includes('PERDIDO') ? 'rgba(163, 51, 200, 0.1)' : 
+                                                                            hitoText.includes('DAÑO CRÍTICO') ? 'rgba(255, 77, 77, 0.1)' : 
+                                                                            hitoText.includes('DAÑO MENOR') ? 'rgba(255, 204, 0, 0.1)' : 'rgba(77, 255, 77, 0.1)', 
+                                                                color: hitoText.includes('PERDIDO') ? '#e086ff' : 
+                                                                       hitoText.includes('DAÑO CRÍTICO') ? '#ff6b6b' : 
+                                                                       hitoText.includes('DAÑO MENOR') ? '#ffcc00' : '#00ff88', 
+                                                                border: `1px solid ${hitoText.includes('PERDIDO') ? 'rgba(163, 51, 200, 0.3)' : 
+                                                                                      hitoText.includes('DAÑO CRÍTICO') ? 'rgba(255, 77, 77, 0.3)' : 
+                                                                                      hitoText.includes('DAÑO MENOR') ? 'rgba(255, 204, 0, 0.3)' : 'rgba(0, 255, 136, 0.3)'}`,
+                                                                padding: '0.15rem 0.5rem', 
                                                                 borderRadius: '4px', 
-                                                                fontSize: '0.7rem', 
-                                                                fontWeight: 'bold' 
+                                                                fontSize: '0.65rem', 
+                                                                fontWeight: '800',
+                                                                textTransform: 'uppercase',
+                                                                letterSpacing: '0.5px'
                                                             }}>
                                                                 {hitoText.match(/\[ESTADO: (.*?)\]/)?.[0] || 'REPORTE DE ESTADO'}
                                                             </span>
@@ -764,8 +868,8 @@ const TacticalPanel = ({ eventoId, coordenadas, riesgo, contract, onBack, onGene
                                 CERRAR
                             </button>
                             {onGenerateReport && (
-                                <button onClick={() => onGenerateReport(milestones)} className="btn" style={{ width: '100%', fontSize: '0.85rem', fontWeight: 'bold', letterSpacing: '1px', background: 'var(--accent-color)', color: '#000' }}>
-                                    📄 RESUMEN DEL EVENTO
+                                <button onClick={() => onGenerateReport(fullLogs)} className="btn" style={{ width: '100%', fontSize: '0.85rem', fontWeight: 'bold', letterSpacing: '1px', background: 'var(--accent-color)', color: '#000' }}>
+                                    📄 GENERAR REPORTE
                                 </button>
                             )}
                         </div>

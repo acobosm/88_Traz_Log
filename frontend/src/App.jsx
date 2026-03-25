@@ -72,6 +72,7 @@ function App() {
   const [showV360Modal, setShowV360Modal] = useState(false)
   const [selectedV360Incident, setSelectedV360Incident] = useState(null)
   const [v360Logs, setV360Logs] = useState([])
+  const [expandedV360Brigadistas, setExpandedV360Brigadistas] = useState({})
   const [showHistoryModal, setShowHistoryModal] = useState(false)
   const [historyData, setHistoryData] = useState({ item: null, logs: [] })
   const [showRiskModalApp, setShowRiskModalApp] = useState(false)
@@ -105,27 +106,21 @@ function App() {
     const fetchV360Logs = async () => {
       if (showV360Modal && selectedV360Incident && contractInstance) {
         try {
-          const logs = await contractInstance.obtenerLogEvento(BigInt(selectedV360Incident.id))
-          const formatted = logs.map(l => {
-            let details = l.detalles;
+          const eventIdNum = parseInt(selectedV360Incident.id.replace('ID-INC', ''));
+          const stateLogs = await contractInstance.obtenerLogEvento(BigInt(eventIdNum));
+          
+          const formatted = stateLogs.map((l) => {
             let type = 'text';
             try {
               const parsed = JSON.parse(l.detalles);
-              if (parsed.type === 'pin') {
-                const coordsStr = parsed.latlng ? `${parsed.latlng.lat.toFixed(4)}, ${parsed.latlng.lng.toFixed(4)}` : '';
-                details = `📍 ${parsed.label} (${parsed.pinType.toUpperCase()}) ${coordsStr ? `[${coordsStr}]` : ''}`;
-                type = 'pin';
-              } else if (parsed.text) {
-                details = parsed.text;
-              }
-            } catch (e) {
-              // Not JSON, use as is
-            }
+              if (parsed.type === 'pin') type = 'pin';
+            } catch (e) {}
+
             return {
               timestamp: Number(l.timestamp),
-              detalles: details,
+              detalles: l.detalles,
               operador: l.operador,
-              codigoInsumo: l.codigoInsumo, // Incluimos el hash del insumo para resolución de nombres
+              codigoInsumo: l.codigoInsumo,
               type
             }
           })
@@ -138,7 +133,14 @@ function App() {
       }
     }
     fetchV360Logs()
-  }, [showV360Modal, selectedV360Incident, contractInstance])
+  }, [showV360Modal, selectedV360Incident, contractInstance]);
+
+  const toggleV360Brigadista = (addr) => {
+    setExpandedV360Brigadistas(prev => ({
+      ...prev,
+      [addr]: !prev[addr]
+    }))
+  };
 
   // Redirección automática si es Brigadista y no tiene otros roles (Top-level Hook)
   useEffect(() => {
@@ -225,7 +227,6 @@ function App() {
           type: 'asignacion',
           timestamp: 0,
           blockNumber: log.blockNumber,
-          txHash: log.transactionHash,
           details: `Asignado al Incidente ID-INC${log.args[0].toString().padStart(3, '0')}`,
           operador: log.args[2]
         });
@@ -236,7 +237,6 @@ function App() {
           type: 'hito',
           timestamp: 0,
           blockNumber: log.blockNumber,
-          txHash: log.transactionHash,
           details: log.args.detalles || log.args[3] || 'Sin detalles',
           operador: log.args.operador || log.args[2] || '---'
         });
@@ -247,8 +247,11 @@ function App() {
           type: 'retorno',
           timestamp: 0,
           blockNumber: log.blockNumber,
-          txHash: log.transactionHash,
-          details: `Retornado a Base Operativa (Estado: ${log.args[1] === 0 ? 'Disponible' : 'Taller/Perdido'})`,
+          details: (() => {
+            const estado = Number(log.args[1]);
+            const map = { 0: 'Disponible', 1: 'En Uso', 2: 'Taller', 3: 'Perdido', 4: 'En Retorno' };
+            return `Retornado a Base Operativa (Estado: ${map[estado] || 'Desconocido'})`;
+          })(),
           operador: 'BASE'
         });
       });
@@ -258,7 +261,7 @@ function App() {
         try {
           const [block, tx] = await Promise.all([
             contractInstance.runner.provider.getBlock(h.blockNumber),
-            h.operador === null ? contractInstance.runner.provider.getTransaction(h.txHash) : null
+            h.operador === null ? contractInstance.runner.provider.getTransaction(h.transactionHash) : null
           ]);
           return {
             ...h,
@@ -317,7 +320,6 @@ function App() {
 
       doc.setFontSize(8);
       doc.setTextColor(150);
-      doc.text(`TxHash: ${log.txHash}`, 25, yPos);
       doc.setTextColor(0);
       yPos += 10;
     });
@@ -356,12 +358,15 @@ function App() {
     }
     doc.text(`Coordenadas: ${stripEmojis(incident.coords) || "N/A"}`, 25, incident.activo ? 69 : 76);
 
-    // Personnel & Resources
     let yPos = incident.activo ? 85 : 92;
+
+    // Personnel & Resources
     doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
     doc.text("PERSONAL Y RECURSOS ASIGNADOS", 20, yPos);
     yPos += 10;
     doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
 
     const assignedPersonnel = personnel.filter(p => {
       if (historicAssignments) {
@@ -398,20 +403,59 @@ function App() {
       });
     }
 
+    // Recursos en Campo
+    const isPinLog = (l) => {
+      if (l.type === 'pin') return true;
+      if (!l || !l.detalles) return false;
+      try {
+        const parsed = typeof l.detalles === 'string' ? JSON.parse(l.detalles) : l.detalles;
+        return parsed && parsed.type === 'pin';
+      } catch (e) { return false; }
+    };
+
+    const fieldResources = logs.filter(isPinLog);
+    if (fieldResources.length > 0) {
+      if (yPos > 240) { doc.addPage(); yPos = 20; }
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text("RECURSOS EN CAMPO", 20, yPos);
+      yPos += 10;
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      fieldResources.forEach(res => {
+        let cleanText = stripEmojis(res.detalles);
+        try {
+          const parsed = typeof res.detalles === 'string' ? JSON.parse(res.detalles) : res.detalles;
+          if (parsed && parsed.type === 'pin') {
+            const coordsStr = parsed.latlng ? `[${parsed.latlng.lat.toFixed(4)}, ${parsed.latlng.lng.toFixed(4)}]` : '';
+            cleanText = `${parsed.fullLabel || parsed.label} (${(parsed.pinType || 'N/A').toUpperCase()}) ${coordsStr}`;
+          }
+        } catch (e) { }
+
+        doc.text(`  • ${cleanText}`, 25, yPos);
+        yPos += 5;
+        yPos += 1;
+        if (yPos > 275) { doc.addPage(); yPos = 20; }
+      });
+      yPos += 5;
+    }
+
     // Bitácora
     yPos += 5;
     if (yPos > 240) { doc.addPage(); yPos = 20; }
     doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
     doc.text("BITÁCORA DE HITOS", 20, yPos);
     yPos += 10;
     doc.setFontSize(8);
 
-    if (logs.length === 0) {
+    const bitacoraLogs = logs.filter(l => !isPinLog(l));
+    if (bitacoraLogs.length === 0) {
       doc.text("No hay hitos registrados.", 25, yPos);
     } else {
-      logs.forEach(log => {
+      bitacoraLogs.forEach(log => {
         if (yPos > 270) { doc.addPage(); yPos = 20; }
-        const time = new Date(log.timestamp * 1000).toLocaleString();
+        const time = new Date(Number(log.timestamp) * 1000).toLocaleString();
         const opName = personnel.find(p => p.address.toLowerCase() === log.operador.toLowerCase())?.name || log.operador.substring(0, 10);
 
         doc.setFont("helvetica", "bold");
@@ -513,6 +557,7 @@ function App() {
           }
           yPos += 5;
         });
+
 
         yPos += 3; // Espacio entre hitos de la bitácora
       });
@@ -828,25 +873,42 @@ function App() {
     try {
       const roleBase = await contract.BASE_OPERATIVA_ROLE()
       const roleJefe = await contract.JEFE_ESCENA_ROLE()
+      const roleAuditor = await contract.AUDITOR_ROLE()
       const addresses = await contract.getListaPersonal()
       const list = await Promise.all(addresses.map(async (addr) => {
         if (addr === ethers.ZeroAddress) return null
         const isBase = await contract.hasRole(roleBase, addr)
         if (isBase) return null
-        const isJefe = await contract.hasRole(roleJefe, addr)
-        const p = await contract.brigadistas(addr)
+        const [isJefe, isAuditor] = await Promise.all([
+          contract.hasRole(roleJefe, addr),
+          contract.hasRole(roleAuditor, addr)
+        ])
+        const [p, deployId] = await Promise.all([
+          contract.brigadistas(addr),
+          contract.despliegueActual(addr)
+        ]);
 
         // Determinar estado e incidente
         const assignmentInfo = incidentMap[addr.toLowerCase()]
-        const estadoLabel = (assignmentInfo && assignmentInfo.activo) ? 'EN INCIDENTE' : (p.estaActivo ? 'DISPONIBLE' : 'INACTIVO')
+        let estadoLabel = 'DISPONIBLE'
+        
+        // El source of truth es despliegueActual. Si es 0, el brigadista está LIBRE.
+        if (Number(deployId) === 0) {
+          estadoLabel = 'DISPONIBLE'
+        } else if (assignmentInfo) {
+          estadoLabel = assignmentInfo.activo ? 'EN INCIDENTE' : 'EN RETORNO'
+        } else if (!p.estaActivo) {
+          estadoLabel = 'INACTIVO'
+        }
 
         return {
           address: addr,
           name: p.nombre,
           specialty: p.especialidad,
           isJefe,
+          isAuditor,
           estado: estadoLabel,
-          incidente: assignmentInfo ? `ID-INC${assignmentInfo.id.padStart(3, '0')}` : '---'
+          incidente: (Number(deployId) !== 0 && assignmentInfo) ? `ID-INC${assignmentInfo.id.padStart(3, '0')}` : '---'
         }
       }))
       setPersonnel(list.filter(p => p !== null))
@@ -933,7 +995,7 @@ function App() {
         const assignmentInfo = incidentMap[codigo]
         const pendingAudit = await contract.auditoriasPendientes(codigo)
 
-        const estadoLabels = ["Disponible", "En Uso", "Taller", "Perdido", "En Retorno"]
+        const estadoLabels = ["Disponible", "En Incidente", "Taller", "Perdido", "En Retorno"]
 
         return {
           hash: codigo,
@@ -1025,6 +1087,9 @@ function App() {
             onGenerateReport={(logs) => generarReportePDF(selectedIncident, logs)}
             inventory={inventory}
             personnel={personnel}
+            startTimeProp={selectedIncident.timestamp}
+            endTimeProp={selectedIncident.timestampFin}
+            isActivoProp={selectedIncident.activo}
           />
         ) : (
           <main>
@@ -1059,6 +1124,7 @@ function App() {
                 hardRefresh={hardRefresh}
                 fetchAssetHistory={fetchAssetHistory}
                 generarReportePDF={generarReportePDF}
+                onViewV360={(fire) => { setSelectedV360Incident(fire); setShowV360Modal(true); }}
               />
             ) : isBaseOperativa && currentView === 'inventory' ? (
               <>
@@ -1070,7 +1136,7 @@ function App() {
                     estadoLabel: item.estado === 0 ? 'DISPONIBLE' : item.estado === 1 ? 'EN  USO' : item.estado === 2 ? 'TALLER' : item.estado === 3 ? 'EXTRAVIADO' : 'EN RETORNO',
                     custodioNombre: personnel.find(p => p.address?.toLowerCase() === item.custodio?.toLowerCase())?.name || (item.custodio === ethers.ZeroAddress ? 'BASE' : '---')
                   }))}
-                  personnel={personnel}
+                  personnel={personnel.filter(p => !p.isAuditor)}
                   loading={loading}
                   setLoading={setLoading}
                   setStatus={setStatus}
@@ -1116,6 +1182,8 @@ function App() {
                               </div>
                               {!fire.activo && (
                                 <>
+                                  <span style={{ margin: '0 1rem', color: '#666' }}>|</span>
+                                  <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>FIN: {formatTime(fire.timestampFin)}</span>
                                   <span style={{ margin: '0 1rem', color: '#666' }}>|</span>
                                   <span style={{ background: 'rgba(255,100,100,0.1)', color: '#ff6464', padding: '0.1rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 'bold' }}>CERRADO</span>
                                 </>
@@ -1240,7 +1308,7 @@ function App() {
                 {/* Listado de Personal (Solo Lectura para Jefe de Escena) */}
                 <div style={{ marginTop: '2rem' }}>
                   <PersonnelTable
-                    personnel={personnel}
+                    personnel={personnel.filter(p => !p.isAuditor)}
                     inventory={inventory}
                     canManage={false}
                     hardRefresh={hardRefresh}
@@ -1384,7 +1452,7 @@ function App() {
               <select className="skin-select" value={selectedBrigadista} onChange={(e) => setSelectedBrigadista(e.target.value)} style={{ width: '100%', fontSize: '1rem' }}>
                 <option value="">-- Seleccionar Personal --</option>
                 {personnel
-                  .filter(p => p.incidente === '---' || p.incidente === `ID-INC${selectedAssignmentIncident.id.padStart(3, '0')}`)
+                  .filter(p => !p.isAuditor && (p.incidente === '---' || p.incidente === `ID-INC${selectedAssignmentIncident.id.padStart(3, '0')}`))
                   .map(p => <option key={p.address} value={p.address} style={{ padding: '0.4rem' }}>{p.name} ({p.specialty})</option>)
                 }
               </select>
@@ -1397,8 +1465,8 @@ function App() {
         )
       }
 
-      {
-        showV360Modal && selectedV360Incident && (
+        {/* [Modal_Vision_360] */}
+        {showV360Modal && selectedV360Incident && (
           <div className="card" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 1001, width: '95%', maxWidth: '700px', border: '2px solid var(--accent-color)', boxShadow: '0 0 50px rgba(0,0,0,0.9)', background: '#111', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #333', padding: '1rem 1.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -1418,7 +1486,7 @@ function App() {
                 </div>
                 <div>
                   <div style={{ color: 'var(--accent-color)', fontSize: '0.65rem', fontWeight: 'bold', letterSpacing: '1px' }}>ESTADO:</div>
-                  <div style={{ fontSize: '1rem', fontWeight: '800', color: selectedV360Incident.activo ? '#4dff4d' : '#ff4d4d' }}>{selectedV360Incident.activo ? 'ACTIVO' : 'CERRADO'}</div>
+                  <div style={{ fontSize: '1rem', fontWeight: '800', color: selectedV360Incident.activo ? '#4dff4d' : '#ff4d4d' }}>{selectedV360Incident.activo ? 'ACTIVO' : 'FINALIZADO'}</div>
                 </div>
                 <div>
                   <div style={{ color: 'var(--accent-color)', fontSize: '0.65rem', fontWeight: 'bold', letterSpacing: '1px' }}>COORDENADAS:</div>
@@ -1428,6 +1496,12 @@ function App() {
                   <div style={{ color: 'var(--accent-color)', fontSize: '0.65rem', fontWeight: 'bold', letterSpacing: '1px' }}>INICIO:</div>
                   <div style={{ fontSize: '0.8rem' }}>{formatTime(selectedV360Incident.timestamp)}</div>
                 </div>
+                {!selectedV360Incident.activo && (
+                  <div style={{ textAlign: 'right', background: 'rgba(255,0,0,0.05)', padding: '4px 8px', borderRadius: '4px', border: '1px solid rgba(255,0,0,0.1)' }}>
+                    <div style={{ color: '#ff4d4d', fontSize: '0.65rem', fontWeight: 'bold', letterSpacing: '1px' }}>FIN:</div>
+                    <div style={{ fontSize: '0.8rem', color: '#fff' }}>{formatTime(selectedV360Incident.timestampFin)}</div>
+                  </div>
+                )}
               </div>
 
               <div style={{ marginBottom: '1.5rem' }}>
@@ -1439,19 +1513,29 @@ function App() {
                       const assignedItems = inventory.filter(item => item.custodio?.toLowerCase() === p.address?.toLowerCase() && item.estado === 1);
                       return (
                         <div key={p.address} style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem' }}>
-                            <span style={{ fontWeight: 'bold', fontSize: '1rem', color: 'var(--accent-color)' }}>{p.isJefe ? '👨‍🚒 Jefe:' : '👤'} {p.name}</span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: expandedV360Brigadistas[p.address] ? '0.8rem' : '0' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                              <span style={{ fontWeight: 'bold', fontSize: '1rem', color: 'var(--accent-color)' }}>{p.isJefe ? '👨‍🚒 Jefe:' : '👤'} {p.name}</span>
+                              <button 
+                                onClick={() => toggleV360Brigadista(p.address)}
+                                style={{ background: 'rgba(255,165,0,0.1)', border: '1px solid rgba(255,165,0,0.2)', color: 'var(--accent-color)', cursor: 'pointer', width: '22px', height: '22px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', fontWeight: 'bold' }}
+                              >
+                                {expandedV360Brigadistas[p.address] ? '−' : '+'}
+                              </button>
+                            </div>
                             <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', padding: '0.1rem 0.5rem', borderRadius: '4px' }}>{p.specialty}</span>
                           </div>
-                          <div style={{ display: 'grid', gap: '0.4rem' }}>
-                            {assignedItems.length > 0 ? assignedItems.map(item => (
-                              <div key={item.hash} style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.7rem', background: 'rgba(0,0,0,0.3)', padding: '0.5rem 0.8rem', borderRadius: '5px', border: '1px solid rgba(255,165,0,0.1)' }}>
-                                <span style={{ color: 'var(--accent-color)' }}>📦</span>
-                                <span style={{ fontWeight: '600', color: '#eee' }}>{item.descripcion}</span>
-                                <span style={{ fontSize: '0.7rem', color: '#666', marginLeft: 'auto', fontFamily: 'monospace' }}>{item.serialId}</span>
-                              </div>
-                            )) : <span style={{ fontSize: '0.75rem', color: '#555', fontStyle: 'italic', paddingLeft: '1.5rem' }}>Sin recursos vinculados</span>}
-                          </div>
+                          {expandedV360Brigadistas[p.address] && (
+                            <div style={{ display: 'grid', gap: '0.4rem', marginTop: '0.8rem', paddingTop: '0.8rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                              {assignedItems.length > 0 ? assignedItems.map(item => (
+                                <div key={item.hash} style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.7rem', background: 'rgba(0,0,0,0.3)', padding: '0.5rem 0.8rem', borderRadius: '5px', border: '1px solid rgba(255,165,0,0.1)' }}>
+                                  <span style={{ color: 'var(--accent-color)' }}>📦</span>
+                                  <span style={{ fontWeight: '600', color: '#eee' }}>{item.descripcion}</span>
+                                  <span style={{ fontSize: '0.7rem', color: '#666', marginLeft: 'auto', fontFamily: 'monospace' }}>{item.serialId}</span>
+                                </div>
+                              )) : <span style={{ fontSize: '0.75rem', color: '#555', fontStyle: 'italic', paddingLeft: '1.5rem' }}>Sin recursos vinculados</span>}
+                            </div>
+                          )}
                         </div>
                       )
                     })
@@ -1464,13 +1548,43 @@ function App() {
                 </div>
               </div>
 
+              {/* [NUEVO] RECURSOS EN CAMPO */}
+              {v360Logs.some(log => log.type === 'pin') && (
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <h4 style={{ fontSize: '0.9rem', marginBottom: '1rem', borderLeft: '3px solid var(--accent-color)', paddingLeft: '0.5rem', color: 'var(--accent-color)', letterSpacing: '1px' }}>RECURSOS EN CAMPO ({v360Logs.filter(log => log.type === 'pin').length})</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.8rem' }}>
+                    {v360Logs.filter(log => log.type === 'pin').map((res, idx) => {
+                      let label = "RECURSO";
+                      let coords = "";
+                      let typeStr = "PIN";
+                      try {
+                        const parsed = JSON.parse(res.detalles);
+                        label = parsed.fullLabel || parsed.label;
+                        typeStr = (parsed.pinType || 'pin').toUpperCase();
+                        if (parsed.latlng) coords = `${parsed.latlng.lat.toFixed(4)}, ${parsed.latlng.lng.toFixed(4)}`;
+                      } catch (e) {
+                        label = res.detalles.split(' [')[0];
+                        coords = res.detalles.match(/\[(.*?)\]/)?.[1] || '';
+                      }
+
+                      return (
+                        <div key={idx} style={{ fontSize: '0.75rem', background: 'rgba(255,165,0,0.05)', padding: '0.8rem', borderRadius: '8px', border: '1px solid rgba(255,165,0,0.1)', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                          <div style={{ fontWeight: 'bold', color: '#eee' }}>📍 {label} <span style={{ color: 'var(--accent-color)', fontSize: '0.6rem' }}>({typeStr})</span></div>
+                          <div style={{ fontSize: '0.65rem', color: '#666', fontFamily: 'monospace' }}>{coords}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div style={{ marginBottom: '1rem' }}>
                 <h4 style={{ fontSize: '0.9rem', marginBottom: '0.8rem', borderLeft: '3px solid var(--accent-color)', paddingLeft: '0.5rem', color: 'var(--accent-color)' }}>BITÁCORA HISTÓRICA</h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {v360Logs.length === 0 ? (
+                  {v360Logs.filter(log => log.type !== 'pin').length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '1rem', color: '#555', fontSize: '0.8rem' }}>No hay hitos registrados en la bitácora todavía.</div>
                   ) : (
-                    v360Logs.map((log, i) => {
+                    v360Logs.filter(log => log.type !== 'pin').map((log, i) => {
                       const item = log.codigoInsumo && log.codigoInsumo !== ethers.ZeroHash ? inventory.find(i => i.hash === log.codigoInsumo) : null;
                       const opName = personnel.find(p => p.address.toLowerCase() === log.operador.toLowerCase())?.name || log.operador.substring(0, 8) + '...';
                       return (
@@ -1480,7 +1594,9 @@ function App() {
                               <span style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--accent-color)', letterSpacing: '0.5px' }}>
                                 Op: {opName}
                               </span>
-                              <span style={{ fontSize: '0.65rem', color: '#666' }}>{new Date(log.timestamp * 1000).toLocaleString()}</span>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                <span style={{ fontSize: '0.65rem', color: '#666' }}>{new Date(log.timestamp * 1000).toLocaleString()}</span>
+                              </div>
                             </div>
                             {item && (
                               <span style={{ fontSize: '0.65rem', color: '#ff8c00', background: 'rgba(255,140,0,0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid rgba(255,140,0,0.2)', fontWeight: 'bold' }}>
@@ -1489,30 +1605,52 @@ function App() {
                             )}
                           </div>
                           <div style={{ fontSize: '0.85rem', color: '#eee', lineHeight: '1.5', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '0.4rem' }}>
-                            {log.detalles.includes('[ESTADO:') && (
-                              <div style={{ marginBottom: '0.4rem' }}>
-                                <span style={{ 
-                                  background: log.detalles.includes('PERDIDO') ? '#a333c8' : 
-                                              log.detalles.includes('DAÑO CRÍTICO') ? '#ff4d4d' : 
-                                              log.detalles.includes('DAÑO MENOR') ? '#ffcc00' : '#4dff4d', 
-                                  color: log.detalles.includes('DAÑO MENOR') ? '#000' : '#fff', 
-                                  padding: '0.1rem 0.5rem', 
-                                  borderRadius: '4px', 
-                                  fontSize: '0.7rem', 
-                                  fontWeight: 'bold' 
-                                }}>
-                                  {log.detalles.match(/\[ESTADO: (.*?)\]/)?.[0] || 'REPORTE DE ESTADO'}
-                                </span>
-                              </div>
-                            )}
-                            {(log.detalles.includes('Daño Crítico') || log.detalles.includes('Daño Critico')) && !log.detalles.includes('[ESTADO:') && (
-                              <div style={{ marginBottom: '0.4rem' }}>
-                                <span style={{ background: '#ff4d4d', color: '#fff', padding: '0.1rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                                  ⚠️ REPORTE DE DAÑO CRÍTICO
-                                </span>
-                              </div>
-                            )}
-                            {log.detalles.replace(/\[ESTADO: .*?\] /, '')}
+                            {(() => {
+                              let hitoText = log.detalles;
+                              try {
+                                const parsed = JSON.parse(log.detalles);
+                                hitoText = parsed.text || log.detalles;
+                              } catch (e) {}
+
+                              const hasEstado = hitoText.includes('[ESTADO:');
+                              const hasDanoCritico = (hitoText.includes('Daño Crítico') || hitoText.includes('Daño Critico')) && !hasEstado;
+
+                              return (
+                                <>
+                                  {hasEstado && (
+                                    <div style={{ marginBottom: '0.4rem' }}>
+                                      <span style={{ 
+                                        background: hitoText.includes('PERDIDO') ? 'rgba(163, 51, 200, 0.1)' : 
+                                                    hitoText.includes('DAÑO CRÍTICO') ? 'rgba(255, 77, 77, 0.1)' : 
+                                                    hitoText.includes('DAÑO MENOR') ? 'rgba(255, 204, 0, 0.1)' : 'rgba(77, 255, 77, 0.1)', 
+                                        color: hitoText.includes('PERDIDO') ? '#e086ff' : 
+                                               hitoText.includes('DAÑO CRÍTICO') ? '#ff6b6b' : 
+                                               hitoText.includes('DAÑO MENOR') ? '#ffcc00' : '#00ff88', 
+                                        border: `1px solid ${hitoText.includes('PERDIDO') ? 'rgba(163, 51, 200, 0.3)' : 
+                                                              hitoText.includes('DAÑO CRÍTICO') ? 'rgba(255, 77, 77, 0.3)' : 
+                                                              hitoText.includes('DAÑO MENOR') ? 'rgba(255, 204, 0, 0.3)' : 'rgba(0, 255, 136, 0.3)'}`,
+                                        padding: '0.15rem 0.5rem', 
+                                        borderRadius: '4px', 
+                                        fontSize: '0.65rem', 
+                                        fontWeight: '800',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.5px'
+                                      }}>
+                                        {hitoText.match(/\[ESTADO: (.*?)\]/)?.[0] || 'REPORTE DE ESTADO'}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {hasDanoCritico && (
+                                    <div style={{ marginBottom: '0.4rem' }}>
+                                      <span style={{ background: '#ff4d4d', color: '#fff', padding: '0.1rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                                        ⚠️ REPORTE DE DAÑO CRÍTICO
+                                      </span>
+                                    </div>
+                                  )}
+                                  {hitoText.replace(/\[ESTADO: .*?\] /, '')}
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
                       );
@@ -1570,14 +1708,21 @@ function App() {
                            {log.details.includes('[ESTADO:') && (
                              <div style={{ marginBottom: '0.4rem' }}>
                                <span style={{ 
-                                 background: log.details.includes('PERDIDO') ? '#a333c8' : 
-                                             log.details.includes('DAÑO CRÍTICO') ? '#ff4d4d' : 
-                                             log.details.includes('DAÑO MENOR') ? '#ffcc00' : '#4dff4d', 
-                                 color: log.details.includes('DAÑO MENOR') ? '#000' : '#fff', 
-                                 padding: '0.1rem 0.5rem', 
+                                 background: log.details.includes('PERDIDO') ? 'rgba(163, 51, 200, 0.1)' : 
+                                             log.details.includes('DAÑO CRÍTICO') ? 'rgba(255, 77, 77, 0.1)' : 
+                                             log.details.includes('DAÑO MENOR') ? 'rgba(255, 204, 0, 0.1)' : 'rgba(77, 255, 77, 0.1)', 
+                                 color: log.details.includes('PERDIDO') ? '#e086ff' : 
+                                        log.details.includes('DAÑO CRÍTICO') ? '#ff6b6b' : 
+                                        log.details.includes('DAÑO MENOR') ? '#ffcc00' : '#00ff88', 
+                                 border: `1px solid ${log.details.includes('PERDIDO') ? 'rgba(163, 51, 200, 0.3)' : 
+                                                       log.details.includes('DAÑO CRÍTICO') ? 'rgba(255, 77, 77, 0.3)' : 
+                                                       log.details.includes('DAÑO MENOR') ? 'rgba(255, 204, 0, 0.3)' : 'rgba(0, 255, 136, 0.3)'}`,
+                                 padding: '0.15rem 0.5rem', 
                                  borderRadius: '4px', 
-                                 fontSize: '0.7rem', 
-                                 fontWeight: 'bold' 
+                                 fontSize: '0.65rem', 
+                                 fontWeight: '800',
+                                 textTransform: 'uppercase',
+                                 letterSpacing: '0.5px'
                                }}>
                                  {log.details.match(/\[ESTADO: (.*?)\]/)?.[0] || 'REPORTE DE ESTADO'}
                                </span>
@@ -1590,7 +1735,6 @@ function App() {
                           Responsable: {String(log.operador) === 'BASE' ? 'BASE OPERATIVA' : (personnel.find(p => String(p.address).toLowerCase() === String(log.operador).toLowerCase())?.name || String(log.operador).substring(0, 10) + '...')}
                         </div>
                         <div style={{ fontSize: '0.65rem', marginTop: '0.2rem', color: '#555', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                          TxHash: {log.txHash}
                         </div>
                       </div>
                     </div>
@@ -1668,7 +1812,7 @@ function App() {
                 <p style={{ margin: 0 }}><strong>Equipo:</strong> {selectedReturnItem.serialId} - {selectedReturnItem.descripcion}</p>
                 <p style={{ margin: '0.5rem 0 0 0' }}><strong>Procedencia:</strong> {selectedReturnItem.incidente} {!selectedReturnItem.incidenteActivo && '(Finalizado)'}</p>
                 <p style={{ fontSize: '0.75rem', color: '#888', marginTop: '1rem', fontStyle: 'italic' }}>
-                  Confirmar la recepción inmutable del equipo en base y realizar auditoría de consumo/estado.
+                  Confirmar la recepción del equipo en base y realizar auditoría de consumo/estado.
                 </p>
               </div>
 
@@ -1682,22 +1826,22 @@ function App() {
               </div>
 
               <div>
-                <label className="skin-label">CONSUMO REAL (ML / LITROS)</label>
+                <label className="skin-label">CONSUMO REAL (LITROS)</label>
                 <input type="number" className="skin-select" style={{ backgroundImage: 'none' }} value={returnForm.consumoReal} onChange={(e) => setReturnForm({ ...returnForm, consumoReal: Number(e.target.value) })} />
                 {selectedReturnItem.consumoNominal > 0 && (
                   <p style={{ fontSize: '0.7rem', color: '#666', marginTop: '0.4rem' }}>
-                    Referencia Nominal: {selectedReturnItem.consumoNominal} ml/h
+                    Referencia Nominal: {selectedReturnItem.consumoNominal} L/h
                   </p>
                 )}
               </div>
 
               <div>
                 <label className="skin-label">MOTIVO DE DISCREPANCIA (OPCIONAL)</label>
-                <textarea className="skin-select" style={{ backgroundImage: 'none', height: '80px', resize: 'none' }} placeholder="Describa si el equipo regresa con daños no reportados..." value={returnForm.motivoDiscrepancia} onChange={(e) => setReturnForm({ ...returnForm, motivoDiscrepancia: e.target.value })} />
+                <textarea className="skin-select" style={{ backgroundImage: 'none', height: '140px', resize: 'vertical', minHeight: '100px', width: '100%', boxSizing: 'border-box' }} placeholder="Describa si el equipo regresa con daños no reportados..." value={returnForm.motivoDiscrepancia} onChange={(e) => setReturnForm({ ...returnForm, motivoDiscrepancia: e.target.value })} />
               </div>
 
               <button className="btn" onClick={ejecutarRetorno} disabled={loading} style={{ width: '100%', marginTop: '1rem' }}>
-                {loading ? 'PROCESANDO...' : 'CONFIRMAR RECEPCIÓN INMUTABLE'}
+                {loading ? 'PROCESANDO...' : 'CONFIRMAR RECEPCIÓN'}
               </button>
             </div>
           </div>

@@ -43,6 +43,7 @@ const PersonnelTable = ({
                         <option value="all">ESTADO: TODOS</option>
                         <option value="available">DISPONIBLES</option>
                         <option value="incident">EN INCIDENTE</option>
+                        <option value="returning">EN RETORNO</option>
                     </select>
                     <button 
                         className="btn btn-secondary" 
@@ -129,8 +130,9 @@ const PersonnelTable = ({
                         {personnel
                             .filter(p => {
                                 // Filtro por dropdown de estado
-                                if (personnelFilter === 'available' && p.incidente !== '---') return false;
-                                if (personnelFilter === 'incident' && p.incidente === '---') return false;
+                                if (personnelFilter === 'available' && p.estado !== 'DISPONIBLE') return false;
+                                if (personnelFilter === 'incident' && p.estado !== 'EN INCIDENTE') return false;
+                                if (personnelFilter === 'returning' && p.estado !== 'EN RETORNO') return false;
                                 
                                 // Filtro por texto de búsqueda (nombre o incidente)
                                 if (searchTerm) {
@@ -178,10 +180,17 @@ const PersonnelTable = ({
                                                 </div>
                                             </td>
                                             <td style={{ padding: '1rem', color: '#ccc' }}>{p.specialty}</td>
-                                            <td style={{ padding: '1rem', fontSize: '0.7rem', color: '#666', fontFamily: 'monospace' }}>{p.address}</td>
+                                            <td style={{ padding: '1rem', fontSize: '0.7rem', color: '#666', fontFamily: 'monospace' }}>
+                                                {p.address.slice(0, 7)}...{p.address.slice(-5)}
+                                            </td>
                                             <td style={{ padding: '1rem' }}>
-                                                <span className={`status-pill risk-${p.incidente === '---' ? '1' : '4'}`} style={{ fontSize: '0.65rem' }}>
-                                                    {p.incidente === '---' ? 'DISPONIBLE' : 'EN DESPLIEGUE'}
+                                                <span className={`status-pill`} style={{ 
+                                                    fontSize: '0.65rem',
+                                                    background: (p.estado === 'EN INCIDENTE' || p.estado === 'EN DESPLIEGUE') ? 'rgba(255,107,107,0.1)' : (p.estado === 'EN RETORNO' ? 'rgba(255,165,0,0.1)' : 'rgba(0,255,136,0.1)'),
+                                                    color: (p.estado === 'EN INCIDENTE' || p.estado === 'EN DESPLIEGUE') ? '#ff6b6b' : (p.estado === 'EN RETORNO' ? '#ffa500' : '#00ff88'),
+                                                    border: `1px solid ${(p.estado === 'EN INCIDENTE' || p.estado === 'EN DESPLIEGUE') ? '#ff6b6b' : (p.estado === 'EN RETORNO' ? '#ffa500' : '#00ff88')}`
+                                                }}>
+                                                    {p.estado === 'EN DESPLIEGUE' ? 'EN INCIDENTE' : p.estado}
                                                 </span>
                                             </td>
                                             <td style={{ padding: '1rem', color: p.incidente !== '---' ? 'var(--accent-color)' : '#666', fontWeight: 'bold' }}>{p.incidente}</td>

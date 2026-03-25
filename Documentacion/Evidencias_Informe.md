@@ -24,102 +24,10 @@ El sistema ha sido diseñado bajo una arquitectura **RBAC (Role Based Access Con
 | Perfil | Rol en Contrato | Responsable / Icono | Funciones Principales |
 | :--- | :--- | :--- | :--- |
 | **Administrador** | `DEFAULT_ADMIN_ROLE` | **Cuenta #0** (Admin General) | Gobernanza, gestión de permisos, pausa de emergencia. |
-| **Base Operativa** | `BASE_OPERATIVA_ROLE` | **Alice Liang (#1)** | Registro de personal, carga de CSV, auditoría de consumo. |
+| **Base Operativa** | `BASE_OPERATIVA_ROLE` | **Alice / Bob** | Registro de personal, carga de CSV, auditoría de consumo. |
 | **Jefe de Escena** | `JEFE_ESCENA_ROLE` | **Aura / Tony** | Apertura de incidentes, asignación táctica sobre el mapa. |
 | **Brigadista** | `OPERADOR_ROLE` | **Sung / Loyd** | Registro de hitos en campo, uso de equipo, firma de deslinde. |
 | **Auditor** | `AUDITOR_ROLE` | **Nanami / Shino** | Peritaje forense final, reporte de discrepancias inmutables. |
-
-
-                             _   _
-                            (_) | |
-      __ _   _ __   __   __  _  | |
-     / _` | | '_ \  \ \ / / | | | |
-    | (_| | | | | |  \ V /  | | | |
-     \__,_| |_| |_|   \_/   |_| |_|
-
-    1.5.1-stable (b0a9dd9ced 2025-12-22T11:39:01.425730780Z)
-    https://github.com/foundry-rs/foundry
-
-Available Accounts
-==================
-
-(0) 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 (10000.000000000000000000 ETH)
-(1) 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 (10000.000000000000000000 ETH)
-(2) 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC (10000.000000000000000000 ETH)
-(3) 0x90F79bf6EB2c4f870365E785982E1f101E93b906 (10000.000000000000000000 ETH)
-(4) 0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65 (10000.000000000000000000 ETH)
-(5) 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc (10000.000000000000000000 ETH)
-(6) 0x976EA74026E726554dB657fA54763abd0C3a0aa9 (10000.000000000000000000 ETH)
-(7) 0x14dC79964da2C08b23698B3D3cc7Ca32193d9955 (10000.000000000000000000 ETH)
-(8) 0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f (10000.000000000000000000 ETH)
-(9) 0xa0Ee7A142d267C1f36714E4a8F75612F20a79720 (10000.000000000000000000 ETH)
-(10) 0xBcd4042DE499D14e55001CcbB24a551F3b954096 (10000.000000000000000000 ETH)
-(11) 0x71bE63f3384f5fb98995898A86B02Fb2426c5788 (10000.000000000000000000 ETH)
-(12) 0xFABB0ac9d68B0B445fB7357272Ff202C5651694a (10000.000000000000000000 ETH)
-(13) 0x1CBd3b2770909D4e10f157cABC84C7264073C9Ec (10000.000000000000000000 ETH)
-(14) 0xdF3e18d64BC6A983f673Ab319CCaE4f1a57C7097 (10000.000000000000000000 ETH)
-(15) 0xcd3B766CCDd6AE721141F452C550Ca635964ce71 (10000.000000000000000000 ETH)
-(16) 0x2546BcD3c84621e976D8185a91A922aE77ECEc30 (10000.000000000000000000 ETH)
-(17) 0xbDA5747bFD65F08deb54cb465eB87D40e51B197E (10000.000000000000000000 ETH)
-(18) 0xdD2FD4581271e230360230F9337D5c0430Bf44C0 (10000.000000000000000000 ETH)
-(19) 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199 (10000.000000000000000000 ETH)
-
-Private Keys
-==================
-
-(0) 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-(1) 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
-(2) 0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a
-(3) 0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6
-(4) 0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a
-(5) 0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
-(6) 0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e
-(7) 0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356
-(8) 0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
-(9) 0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6
-(10) 0xf214f2b2cd398c806f84e317254e0f0b801d0643303237d97a22a48e01628897
-(11) 0x701b615bbdfb9de65240bc28bd21bbc0d996645a3dd57e7b12bc2bdf6f192c82
-(12) 0xa267530f49f8280200edf313ee7af6b827f2a8bce2897751d06a843f644967b1
-(13) 0x47c99abed3324a2707c28affff1267e45918ec8c3f20b8aa892e8b065d2942dd
-(14) 0xc526ee95bf44d8fc405a158bb884d9d1238d99f0612e9f33d006bb0789009aaa
-(15) 0x8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61
-(16) 0xea6c44ac03bff858b476bba40716402b03e41b8e97e276d1baec7c37d42484a0
-(17) 0x689af8efa8c651a91ad287602527f3af2fe9f6501a7ac4b061667b5a93e037fd
-(18) 0xde9be858da4a475276426320d5e9262ecfc3ba460bfac56360bfa6c4c28b4ee0
-(19) 0xdf57089febbacf7ba0bc227dafbffa9fc08a93fdc68e1e42411a14efcf23656e
-
-Wallet
-==================
-Mnemonic:          test test test test test test test test test test test junk
-Derivation path:   m/44'/60'/0'/0/
-
-
-Chain ID
-==================
-
-31337
-
-Base Fee
-==================
-
-1000000000
-
-Gas Limit
-==================
-
-30000000
-
-Genesis Timestamp
-==================
-
-1773016123
-
-Genesis Number
-==================
-
-0
-
-Listening on 0.0.0.0:8545
 
 ### Archivos de Referencia - Fase 1
 - [start_anvil.sh](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz%20Log/scripts/start_anvil.sh) - Script de arranque persistente.
@@ -135,7 +43,7 @@ Desarrollo del Smart Contract `TrazabilidadLogistica.sol`:
 - Estructuras para `Personal`, `Insumo`, `EventoIncendio` y `LogOperativo`.
 - Funciones de registro, asignación y auditoría.
 
-Listado de Insumos Reales identificados para carga inicial (Nomenclatura ID-XXYYY):
+Extracto de listado de Insumos Reales identificados para carga inicial (Nomenclatura ID-XXYYY):
 1. **ID-HZ001**: Herramienta de Zapa (Raspado)
 2. **ID-MA001**: Machete de corte denso
 3. **ID-PL001**: Pulaski (Hacha/Azadón)
@@ -196,7 +104,7 @@ Ran 28 tests for test/TrazabilidadLogistica.t.sol:TrazabilidadLogisticaTest
 [PASS] testRetornoConAlertaConsumoHandshake() (gas: 589996)
 [PASS] testRetornoConDiscrepanciaEstadoHandshake() (gas: 873118)
 ...
-Suite result: ok. 28 passed; 0 failed; 0 skipped
+Suite result: ok. 30 passed; 0 failed; 0 skipped
 ```
 
 #### Reporte de Cobertura (Foundry Coverage)
@@ -263,6 +171,8 @@ Mediante el script `scripts/monitor.sh`, el panel táctico se divide en 4 cuadra
 | **Superior Der.** | **Logs Operativos** | Lectura continua de `logs/operaciones.log` (monitoreo off-chain). |
 | **Inferior Izq.** | **Frontend (Vite)** | Estado del servidor web y errores de compilación de la interfaz React. |
 | **Inferior Der.** | **Terminal de Comandos** | Consola interactiva para ejecución de tests, despliegues o depuración. |
+
+![03_Consola_de_Control](imagenes/03_Consola_de_Control_2x2.png)
 
 > [!TIP]
 > **Instrucciones de Uso**: Para iniciar el entorno completo, ejecute en la raíz del proyecto:
@@ -363,26 +273,55 @@ Para responder a la evolución de una emergencia, el sistema permite ahora actua
 - [App.jsx](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz%20Log/frontend/src/App.jsx) - Implementación de filtros, historial y PDF.
 - [TacticalPanel.jsx](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz%20Log/frontend/src/TacticalPanel.jsx) - Lógica de visibilidad y monitoreo táctico.
 
-## Fase 6: Ecosistema Multirol y Gestión Administrativa (En Planificación)
-El proyecto escala de una gestión monobase a una arquitectura multinivel coordinada.
-- **Dashboard de Administración**: Panel maestro para el registro de nuevas Bases Operativas en la blockchain.
-- **Dashboard Brigadista**: Interfaz "Lite" para reporte de hitos críticos desde el smartphone.
-- **Optimización de Campo**: Ajustes UX para movilidad y baja conectividad.
+## Fase 6: Auditoría Forense, Handshake y UX Logística ✨🕵️‍♂️
+El proyecto ha evolucionado de una gestión operativa a un ecosistema de auditoría blindado, integrando peritaje inmutable y visualización 360.
+
+### 1. Centro de Supervisión Táctica (Auditor Dashboard)
+Se ha implementado una terminal forense que permite al perito (Nanami/Shino) validar la integridad de cada incidente:
+- **Visión 360 Unificada**: Integración del botón **"RESUMEN EVENTO"**, permitiendo al auditor visualizar la bitácora táctica exacta, pines de radar y hitos de brigadistas antes de emitir su firma.
+- **Filtrado Avanzado**: Sistema de búsqueda y filtrado por estado (ACTIVOS / CON DISCREPANCIAS / PERITADOS) para priorizar hallazgos críticos.
+- **Gestión de Hallazgos**: Ventana de inspección detallada que cruza eventos de `DiscrepanciaRegistrada` y `AlertaConsumo` emitidos por la blockchain.
+
+### 2. Blindaje de Integridad Operativa
+Se han implementado capas de validación en el frontend para asegurar que el Centro de Supervisión Táctica refleje únicamente la actividad de los incidentes formalmente registrados (ID 1 en adelante), garantizando la coherencia entre los estadísticos globales y el mapa táctico.
+
+### 3. Handshake Logístico y Acta de Deslinde
+Refinamiento del flujo de retorno en dos fases para asegurar la cadena de custodia:
+1.  **Fase de Propuesta (Base Operativa)**: Alice registra el estado físico y consumo real de los equipos.
+2.  **Fase de Aceptación (Brigadista)**: El operador firma digitalmente el acta en su dashboard, liberando su responsabilidad legal sobre el activo.
+- **Evidencia**: El hito de firma se registra inmutablemente indicando: *"Se firma acta de entrega final aceptando reporte..."*
+
+### 4. Estandarización Estética y UX Premium
+- **Badges Modernos**: Unificación de etiquetas de estado en cápsulas semitransparentes de alto contraste.
+- **Timestamps Blockchain**: Visualización unificada de horas de INICIO y FIN del evento extraídas directamente de los bloques de la red.
+- **Resolución de Nombres**: Acortamiento inteligente de direcciones (`0x1a2...4f5`) para optimizar la visualización en dispositivos móviles.
+
+### Archivos de Referencia - Fase 6
+- [AuditorDashboard.jsx](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/frontend/src/AuditorDashboard.jsx) - Lógica forense y filtros.
+- [BrigadistaDashboard.jsx](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/frontend/src/BrigadistaDashboard.jsx) - Interfaz de firma de acta.
+- [Libreto_Simulacion_ver2.md](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/Documentacion/Libreto_Simulacion_ver2.md) - Cronograma maestro de 4 días.
 
 
 ## Fase 7: Ejecución de Simulación en Terreno (Libreto Dinámico)
 
 Acompañamiento y registro de la operación "Fuego Inmutable", validando la trazabilidad de recursos bajo escenarios de estrés, daño y retorno.
 
-### 🗓️ Registro de Hitos de Simulación
+### 🗓️ Registro de Hitos de Simulación (Operación "Fuego Inmutable" V2)
 
-| Escenario | Actor | Acción / Resultado | Evidencia Técnica (Blockchain) |
+| Día | Escenario | Actor | Acción / Resultado |
 | :--- | :--- | :--- | :--- |
-| **2.1 (Paso de Antorcha)** | Jefe | Cambio de mando ID-INC001 | `TxHash: 0x...` (Hito "Mando transferido") |
-| **2.2 (Uso Intensivo)** | Brigadista 1 | Registro de Hito MTB en Atacazo | `TxHash: 0x...` (Hito "Despegue exitoso") |
-| **2.3 (Daño Menor)** | Brigadista 2 | Reporte anomalía GPS (Vehículo) | *En proceso...* |
+| **SÁB** | **Cierre Quito (INC-002)** | Aura | Cierre sin novedades. Handshake Alice-Akira completado. |
+| **DOM** | **Consumo Prosperina (INC-003)** | Alice | Alerta de consumo +25% detectada on-chain. |
+| **LUN** | **Daño Cotopaxi (INC-005)** | Saori | Reporte de Daño Crítico en MB003. Riesgo sube a 5. |
+| **LUN** | **Peritaje Final** | Nanami | Firma electrónica de informes con sello forense inmutable. |
 
 ---
 
-## Fase 8: Cierre Audiado y Handshake Final
-...
+## Fase 8: Conclusiones y Certificación Forense
+El ciclo de vida del incidente ha sido validado satisfactoriamente desde la detección hasta el peritaje final:
+- **Integridad**: Cada hito táctico y logístico cuenta con respaldo inmutable en la blockchain.
+- **Auditoría**: Se han verificado las alertas automáticas de consumo y discrepancias de estado.
+- **Transparencia**: El uso de Visión 360 garantiza que los auditores tengan el contexto operativo completo antes del cierre legal.
+
+---
+*Este informe constituye la base técnica para la certificación de la Operación "Fuego Inmutable" y el cierre del proyecto.*
