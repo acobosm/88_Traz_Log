@@ -100,11 +100,11 @@
 ### PASO 4.3: Peritaje Forense Final (Kento Nanami #18 y Shino Asada #19)
 1.  **Acción**: Ambos auditores acceden al panel de Auditoría y revisan la trazabilidad completa del evento COTOPAXI y cierres pendientes.
 2.  **Sello Forense de Kento Nanami (ID-INC003 - Prosperina)**:
-    > "PERITAJE NANAMI (PROSPERINA): Se valida alerta de consumo (+25%) en motobomba ID-MB002 y daño en válvula de manguera ID-MG001. Hallazgos atribuidos a operación crítica de 42h. Trazabilidad íntegra."
+    > "PERITAJE (PROSPERINA): Se valida alerta de consumo (+25%) en motobomba ID-MB002 y daño en válvula de manguera ID-MG001. Hallazgos atribuidos a operación crítica de 42h. Se recomienda dar por terminado el peritaje del incidente sin acciones administrativas futuras a posterior."
 3.  **Sello Forense de Kento Nanami (ID-INC001 - Cuenca)**:
-    > "PERITAJE NANAMI (CUENCA): Se valida alerta de consumo (+31%) en motobomba ID-MB002. Operación continua verificada. Deslinde firmado conforme a protocolo. Cadena de custodia cerrada."
+    > "PERITAJE (CUENCA): Se valida alerta de consumo (+31%) en motobomba ID-MB002. Operación continua verificada. Deslinde firmado conforme a protocolo. Cadena de custodia cerrada."
 4.  **Sello Forense de Shino Asada (ID-INC004 - Pululahua)**:
-    > "REPORTE ASADA (PULULAHUA): Revisado daño menor en GPS ID-GP001 por caída en relevo. Equipo sigue operativo tras verificación técnica. Brigadista Samantha Tan deslindada de su asignación."
+    > "REPORTE (PULULAHUA): Revisado daño menor en GPS ID-GP001 por caída en relevo. Equipo sigue operativo tras verificación técnica. Brigadista Samantha Tan deslindada de su asignación."
 5.  **Sello Forense de Shino Asada (ID-INC005 - Cotopaxi)**:
     > "REPORTE ASADA (COTOPAXI): Analizado incidente de riesgo extremo. Relevo de mando Leslie a Aura ejecutado bajo protocolo SCI. Certifico daños en MB003 (Calor) y BF001 (Mecánico). Cadena de custodia cerrada al 100%."
 6.  **Resultado**: Los reportes quedan grabados en la Blockchain como hitos finales, cerrando el ciclo de vida de la Operación "Fuego Inmutable".

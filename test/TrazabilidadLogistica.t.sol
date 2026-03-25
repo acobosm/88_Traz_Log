@@ -700,4 +700,31 @@ contract TrazabilidadLogisticaTest is Test {
         vm.expectRevert();
         trazabilidad.registrarReporteAuditoria(1, "Intento Fallido");
     }
+
+    function test_GetListaPersonal() public {
+        address[] memory lista = trazabilidad.getListaPersonal();
+        assertEq(lista.length, 4); // setUp registra 4
+    }
+
+    function test_ObtenerLogEvento() public {
+        vm.prank(jefe);
+        trazabilidad.abrirEventoIncendio("0,0", 1);
+        
+        vm.prank(base);
+        bytes32 codigo = keccak256("ID-LOG-TEST");
+        trazabilidad.registrarInsumo(codigo, "Test", 0);
+        
+        vm.prank(jefe);
+        trazabilidad.asignarInsumo(1, codigo, operador);
+
+        TrazabilidadLogistica.LogOperativo[] memory logs = trazabilidad
+            .obtenerLogEvento(1);
+        assertEq(logs.length, 1); // La asignación del recurso
+    }
+
+    function test_RevertWhen_RegistrarPersonalDuplicado() public {
+        vm.prank(admin);
+        vm.expectRevert("Ya registrado");
+        trazabilidad.registrarPersonal(base, "Alice", "Log", BASE_OPERATIVA_ROLE);
+    }
 }

@@ -18,7 +18,6 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
     bytes32 public constant AUDITOR_ROLE = keccak256("AUDITOR_ROLE");
     bytes32 public constant CONSULTOR_ROLE = keccak256("CONSULTOR_ROLE");
 
-
     // --- Enumeraciones ---
 
     enum EstadoInsumo { //Verificación Física de la Base Operativa al recibir equipo
@@ -273,14 +272,15 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
 
         // --- Verificación de Exclusividad (Fase 3.19) ---
         require(
-            despliegueActual[_operador] == 0 || despliegueActual[_operador] == _eventoID,
+            despliegueActual[_operador] == 0 ||
+                despliegueActual[_operador] == _eventoID,
             "Brigadista asignado a otro incidente activo"
         );
 
         inventario[_codigo].estado = EstadoInsumo.EnUso;
         inventario[_codigo].custodioActual = _operador;
         inventario[_codigo].inicioUso = block.timestamp;
-        
+
         // Actualizar seguimiento de despliegue
         incendios[_eventoID].recursosAsignados.push(_codigo);
         despliegueActual[_operador] = _eventoID;
@@ -288,7 +288,12 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
 
         string memory nombreInsumo = inventario[_codigo].descripcion;
         string memory nombreOperador = brigadistas[_operador].nombre;
-        string memory mensajeDetalle = string.concat("Asignacion de Recurso: ", nombreInsumo, " entregado a ", nombreOperador);
+        string memory mensajeDetalle = string.concat(
+            "Asignacion de Recurso: ",
+            nombreInsumo,
+            " entregado a ",
+            nombreOperador
+        );
 
         bitacoraEvento[_eventoID].push(
             LogOperativo({
@@ -425,24 +430,35 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
      * @dev Paso 1 del Handshake (Brigadista): Deslinde manual temprano.
      * Útil si el equipo se rompe antes de que acabe el incendio.
      */
-    function iniciarRetorno(bytes32 _codigo) external onlyRole(OPERADOR_ROLE) whenNotPaused {
-        require(inventario[_codigo].custodioActual == msg.sender, "No es el custodio");
-        require(inventario[_codigo].estado == EstadoInsumo.EnUso, "No esta en uso");
-        
+    function iniciarRetorno(
+        bytes32 _codigo
+    ) external onlyRole(OPERADOR_ROLE) whenNotPaused {
+        require(
+            inventario[_codigo].custodioActual == msg.sender,
+            "No es el custodio"
+        );
+        require(
+            inventario[_codigo].estado == EstadoInsumo.EnUso,
+            "No esta en uso"
+        );
+
         inventario[_codigo].estado = EstadoInsumo.EnRetorno;
         // El brigadista declara que el equipo va de vuelta.
         // Registramos un hito automático de retorno.
         uint256 eventoID = despliegueActual[msg.sender];
         if (eventoID != 0) {
-            string memory detalleRetorno = "Retorno Anticipado: El equipo va de vuelta a base antes del cierre.";
-            bitacoraEvento[eventoID].push(LogOperativo({
-                eventoID: eventoID,
-                codigoInsumo: _codigo,
-                operador: msg.sender,
-                timestamp: block.timestamp,
-                detalles: detalleRetorno,
-                esDiscrepancia: false
-            }));
+            string
+                memory detalleRetorno = "Retorno Anticipado: El equipo va de vuelta a base antes del cierre.";
+            bitacoraEvento[eventoID].push(
+                LogOperativo({
+                    eventoID: eventoID,
+                    codigoInsumo: _codigo,
+                    operador: msg.sender,
+                    timestamp: block.timestamp,
+                    detalles: detalleRetorno,
+                    esDiscrepancia: false
+                })
+            );
             emit HitoRegistrado(eventoID, _codigo, msg.sender, detalleRetorno);
         }
     }
@@ -456,8 +472,11 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
         uint256 _consumoReal,
         string memory _motivoDiscrepancia
     ) external onlyRole(BASE_OPERATIVA_ROLE) whenNotPaused nonReentrant {
-        require(inventario[_codigo].estado == EstadoInsumo.EnRetorno, "No esta en retorno");
-        
+        require(
+            inventario[_codigo].estado == EstadoInsumo.EnRetorno,
+            "No esta en retorno"
+        );
+
         auditoriasPendientes[_codigo] = AuditoriaPendiente({
             estadoPropuesto: _estadoPropuesto,
             consumoReal: _consumoReal,
@@ -472,20 +491,34 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
      * @dev Paso 3 del Handshake (Brigadista): Firma de Acta y Liberacion.
      * El brigadista firma que esta de acuerdo con la auditoria de base.
      */
-    function firmarDeslinde(bytes32 _codigo) external onlyRole(OPERADOR_ROLE) whenNotPaused nonReentrant {
-        require(inventario[_codigo].custodioActual == msg.sender, "No es el custodio");
-        require(auditoriasPendientes[_codigo].activa, "No hay auditoria pendiente");
+    function firmarDeslinde(
+        bytes32 _codigo
+    ) external onlyRole(OPERADOR_ROLE) whenNotPaused nonReentrant {
+        require(
+            inventario[_codigo].custodioActual == msg.sender,
+            "No es el custodio"
+        );
+        require(
+            auditoriasPendientes[_codigo].activa,
+            "No hay auditoria pendiente"
+        );
 
         AuditoriaPendiente memory aud = auditoriasPendientes[_codigo];
         Insumo storage insumo = inventario[_codigo];
 
-        // --- Lógica de Auditoría Automática de Consumo ---
+        // --- Lógica de Auditoría Automática de Consumo con umbral 20% ---
         if (insumo.consumoNominal > 0 && insumo.inicioUso > 0) {
             uint256 tiempoUsoSegundos = block.timestamp - insumo.inicioUso;
-            uint256 consumoEsperado = (tiempoUsoSegundos * insumo.consumoNominal) / 3600;
+            uint256 consumoEsperado = (tiempoUsoSegundos *
+                insumo.consumoNominal) / 3600;
 
             if (aud.consumoReal > (consumoEsperado * 120) / 100) {
-                emit AlertaConsumo(0, _codigo, consumoEsperado, aud.consumoReal);
+                emit AlertaConsumo(
+                    0,
+                    _codigo,
+                    consumoEsperado,
+                    aud.consumoReal
+                );
             }
         }
 
@@ -498,22 +531,27 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
         insumo.custodioActual = address(0);
         insumo.inicioUso = 0;
         insumo.ultimoMantenimiento = block.timestamp;
-        
+
         // Limpiamos auditoria
         delete auditoriasPendientes[_codigo];
 
         // Paso 3.19: Registro de hito de firma para historial del brigadista
         uint256 eventoID = despliegueActual[msg.sender];
         if (eventoID != 0) {
-            string memory detalleFirma = string.concat("Acta de Devolucion Firmada: ", inventario[_codigo].descripcion);
-            bitacoraEvento[eventoID].push(LogOperativo({
-                eventoID: eventoID,
-                codigoInsumo: _codigo,
-                operador: msg.sender,
-                timestamp: block.timestamp,
-                detalles: detalleFirma,
-                esDiscrepancia: false
-            }));
+            string memory detalleFirma = string.concat(
+                "Acta de Devolucion Firmada: ",
+                inventario[_codigo].descripcion
+            );
+            bitacoraEvento[eventoID].push(
+                LogOperativo({
+                    eventoID: eventoID,
+                    codigoInsumo: _codigo,
+                    operador: msg.sender,
+                    timestamp: block.timestamp,
+                    detalles: detalleFirma,
+                    esDiscrepancia: false
+                })
+            );
             emit HitoRegistrado(eventoID, _codigo, msg.sender, detalleFirma);
         }
 
@@ -529,8 +567,15 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
     }
 
     // Deprecamos la funcion anterior de retorno directo
-    function retornarInsumo(bytes32, EstadoInsumo, uint256, string memory) external pure {
-        revert("Use el flujo de Handshake: registrarAuditoria + firmarDeslinde");
+    function retornarInsumo(
+        bytes32,
+        EstadoInsumo,
+        uint256,
+        string memory
+    ) external pure {
+        revert(
+            "Use el flujo de Handshake: registrarAuditoria + firmarDeslinde"
+        );
     }
 
     /**
@@ -544,19 +589,20 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
         string calldata _reporte
     ) external onlyRole(AUDITOR_ROLE) whenNotPaused {
         require(!incendios[_eventoID].activo, "Incidente aun activo");
-        
-        bitacoraEvento[_eventoID].push(LogOperativo({
-            eventoID: _eventoID,
-            codigoInsumo: bytes32(0),
-            operador: msg.sender,
-            timestamp: block.timestamp,
-            detalles: string.concat("PERITAJE FINAL AUDITORIA: ", _reporte),
-            esDiscrepancia: false
-        }));
+
+        bitacoraEvento[_eventoID].push(
+            LogOperativo({
+                eventoID: _eventoID,
+                codigoInsumo: bytes32(0),
+                operador: msg.sender,
+                timestamp: block.timestamp,
+                detalles: string.concat("PERITAJE FINAL AUDITORIA: ", _reporte),
+                esDiscrepancia: false
+            })
+        );
 
         emit HitoRegistrado(_eventoID, bytes32(0), msg.sender, _reporte);
     }
-
 
     // --- Funciones de Vista ---
 
