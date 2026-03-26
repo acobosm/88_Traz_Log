@@ -4,8 +4,10 @@
     "description": "Sistema de Trazabilidad Logística Global para Incendios Forestales",
     "main": "index.js",
     "scripts": {
-        "monitor": "./scripts/monitor.sh",
+        "setup": "npm install && cd frontend && npm install && cd .. && cp -n .env.example .env || true",
+        "start-anvil": "./scripts/start_anvil.sh",
         "bootstrap": "./scripts/bootstrap.sh",
+        "monitor": "./scripts/monitor.sh",
         "log": "node scripts/logger.js",
         "test": "forge test"
     },

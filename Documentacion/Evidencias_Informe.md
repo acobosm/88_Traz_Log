@@ -1,5 +1,18 @@
 # Informe de Evidencias - Trazabilidad Logística
 
+Este documento es el registro oficial de la arquitectura **FireOPS**, la cual ha sido certificada bajo los estándares de la industria Ethereum:
+- **ERC-173 (Standard Contract Ownership)**: Gestión de propiedad y administración descentralizada.
+- **ERC-165 (Standard Interface Detection)**: Interoperabilidad y detección dinámica de capacidades del contrato.
+- **RBAC (Role-Based Access Control)**: Control de accesos granular para Base Operativa, Jefe de Escena, Brigadista y Auditor. El **Administrador** posee la facultad exclusiva de realizar cambios de perfiles en tiempo real (ej. promover a un Brigadista o Jefe de Escena al rol de Auditor).
+
+### Tokenización Forense de Activos
+El sistema implementa una **Tokenización Ad-Hoc de Activos Críticos** bajo los siguientes parámetros de diseño:
+
+1.  **Representación Digital Unívoca**: Cada herramienta (desde un batefuego hasta una motobomba) es tratada como un **Token No Fungible (NFT)** dentro de nuestra estructura lógica `Insumo`. Cada uno tiene su propio ID único, un custodio (dueño) asignado en la blockchain y un historial de estados inmutable.
+2.  **Lógica Forense**: El sistema implementa un **'Handshake de Custodia'** (Protocolo de Devolución en 2 Fases). El Token Forense diseñado requiere una aceptación de la Base Operativa y una firma de conformidad del Brigadista para liberar responsabilidades legales, garantizando la **Cadena de Custodia** en todo momento.
+
+---
+
 Este documento servirá como el registro oficial de capturas de pantalla, logs y resultados de pruebas realizados durante cada fase del proyecto.
 
 ## Fase 1: Configuración, Persistencia y Conectividad
@@ -246,15 +259,21 @@ Se ha implementado una interfaz táctica de "Clase Mundial" que permite la gesti
 ### Archivos de Referencia - Fase 4
 - [App.jsx](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/frontend/src/App.jsx) - Motor de lógica Web3 y Feedback de eventos.
 - [AdminDashboard.jsx](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/frontend/src/AdminDashboard.jsx) - Panel de gestión de roles y permisos del Administrador.
+![04_Admin_Dashboard](imagenes/04_Admin_Dashboard.png)
 - [BaseOperativaDashboard.jsx](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/frontend/src/BaseOperativaDashboard.jsx) - Pantalla de registro de personal y carga masiva CSV.
+![05_Base_Operativa_Dashboard](imagenes/05_Base_Operativa_Dashboard.png)
 - [BrigadistaDashboard.jsx](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/frontend/src/BrigadistaDashboard.jsx) - Interfaz del operador para reportar hitos y firmar actas.
+![06_Brigadista_Dashboard](imagenes/06_Brigadista_Dashboard.png)
 - [index.css](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/frontend/src/index.css) - Definición de Skins y Estética Táctica.
 - [TrazabilidadLogistica.t.sol](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/test/TrazabilidadLogistica.t.sol#L105-154) - Tests de Batch e Idempotencia.
 
 ### 4. Handshake Logístico y Acta de Deslinde (Cierre Operativo)
 Refinamiento del flujo de retorno en dos fases para asegurar la cadena de custodia y el deslinde de responsabilidad:
 1.  **Fase de Revisión (Base Operativa)**: Alice registra el estado físico y consumo real de los equipos tras el incidente.
+![07_Revision_Equipamiento_01](imagenes/07_Revision_Equipamiento_01.png)
+![07_Revision_Equipamiento_02](imagenes/07_Revision_Equipamiento_02.png)
 2.  **Fase de Conformidad (Brigadista)**: El operador firma digitalmente el acta en su dashboard, liberando su responsabilidad legal sobre el activo.
+![08_Recepcion_a_Conformidad](imagenes/08_Recepcion_a_Conformidad.png)
 - **Evidencia**: El hito de firma se registra inmutablemente indicando: *"Se firma acta de entrega final aceptando reporte..."*
 
 ## Fase 5: Panel de Control FireOps y Trazabilidad Avanzada
@@ -297,6 +316,8 @@ Para responder a la evolución de una emergencia, el sistema permite ahora actua
 
 ### Archivos de Referencia - Fase 5
 - [TacticalPanel.jsx](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/frontend/src/TacticalPanel.jsx) - Lógica de visibilidad y monitoreo táctico (Mapa/Radar).
+![09_Boton_Panel_de_Control](imagenes/09_Boton_Panel_de_Control.png)
+![10_Panel_de_Control](imagenes/10_Panel_de_Control.png)
 - [AssetTable.jsx](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/frontend/src/components/AssetTable.jsx) - Componente de gestión dinámica de recursos en campo.
 - [PersonnelTable.jsx](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/frontend/src/components/PersonnelTable.jsx) - Vista de brigadistas con filtrado inteligente de disponibilidad.
 - [TrazabilidadLogistica.sol](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/contracts/TrazabilidadLogistica.sol) - Lógica de exclusividad y contadores tácticos.
@@ -320,6 +341,7 @@ Se han implementado capas de validación en el frontend para asegurar que el Cen
 
 ### Archivos de Referencia - Fase 6
 - [AuditorDashboard.jsx](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/frontend/src/AuditorDashboard.jsx) - Centro de supervisión táctica y peritaje blockchain.
+![11_Auditor_Dashboard](imagenes/11_Auditor_Dashboard.png)
 - [App.jsx](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/frontend/src/App.jsx) - Motor de actas PDF (jsPDF) y lógica de Handshake.
 
 
