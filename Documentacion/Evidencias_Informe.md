@@ -263,7 +263,7 @@ Se ha implementado una interfaz táctica de "Clase Mundial" que permite la gesti
 - [BaseOperativaDashboard.jsx](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/frontend/src/BaseOperativaDashboard.jsx) - Pantalla de registro de personal y carga masiva CSV.
 ![05_Base_Operativa_Dashboard](imagenes/05_Base_Operativa_Dashboard.png)
 - [BrigadistaDashboard.jsx](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/frontend/src/BrigadistaDashboard.jsx) - Interfaz del operador para reportar hitos y firmar actas.
-![06_Brigadista_Dashboard](imagenes/06_Brigadista_Dashboard.png)
+![06_Brigadistas_Dashboard](imagenes/06_Brigadistas_Dashboard.png)
 - [index.css](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/frontend/src/index.css) - Definición de Skins y Estética Táctica.
 - [TrazabilidadLogistica.t.sol](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/test/TrazabilidadLogistica.t.sol#L105-154) - Tests de Batch e Idempotencia.
 
