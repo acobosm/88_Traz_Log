@@ -14,15 +14,15 @@ Desde la visión de transparencia e inmutabilidad, la plataforma actúa como un 
 
 Definir los roles es clave para asignar permisos (quién puede registrar qué). La siguiente es una propuesta de jerarquía con enfoque inicial en la operatividad que se tiene en Ecuador y puede crecer a una proyección global:
 
-[Tabla1: Jerarquía de Actores]
-[Columnas: Actor, Rol en la dApp, Ejemplo de Permisos]
-**Administrador Nacional** (Cuenta 0 Anvil), `ADMIN_NACIONAL`, Despliega el contrato, registra las Bases Operativas (Cuerpos de Bomberos, Ejército, etc.), Cambios de Roles de personal.
-**Bases Operativas** (Cuentas 1 y 2 Anvil), `BASE_OPERATIVA`, Registra inventarios iniciales de insumos y equipos (tanques, radios, linternas, mangueras), y reporta sus novedades, asigna el rol de Jefe de Escena. (Ej: Comandante de Cuerpo de Bomberos), Gestión de personal (Brigadistas)
-**Jefe de Escena** (Cuentas 3 a 6 Anvil), `JEFE_ESCENA`, Crea un nuevo Evento de Incendio, asigna equipos e insumos a las Brigadas/Operadores, registra las fases del evento.
-**Brigadista / Operador** (Cuentas 7 a 16 Anvil), `OPERADOR`, Registra el Uso o Pérdida de insumos asignados, registra hitos de avance o daño durante el combate.
-**Verificador / Auditor** (Cuenta 17 y 18 Anvil), `AUDITOR`, Solo consulta. Revisa la cadena de eventos, el uso de insumos, y la rendición de cuentas post-evento. (Ej: Contraloría, Cruz Roja, Defensa Civil).
-**Público General** (Cuenta 19 Anvil), `CONSULTOR`, Solo consulta. Puede verificar la existencia del evento y el estado general de los recursos utilizados (transparencia).
-[Fin de la Tabla1]
+| Actor | Rol en la dApp | Ejemplo de Permisos |
+| :--- | :--- | :--- |
+| **Administrador Nacional** (Cuenta 0 Anvil) | `ADMIN_NACIONAL` | Despliega el contrato, registra Bases Operativas, Cambios de Roles. |
+| **Bases Operativas** (Cuentas 1 y 2 Anvil) | `BASE_OPERATIVA` | Registra inventarios, reporta novedades, asigna Jefe de Escena, Gestión de personal. |
+| **Jefe de Escena** (Cuentas 3 a 6 Anvil) | `JEFE_ESCENA` | Crea Eventos de Incendio, asigna recursos a las Brigadas, registra fases. |
+| **Brigadista / Operador** (Cuentas 7 a 16 Anvil) | `OPERADOR` | Registra Uso/Pérdida de insumos, registra hitos de avance o daño. |
+| **Verificador / Auditor** (Cuenta 17 y 18 Anvil) | `AUDITOR` | Solo consulta. Revisa cadena de eventos y rendición de cuentas. |
+| **Público General** (Cuenta 19 Anvil) | `CONSULTOR` | Solo consulta. Verifica eventos y estado general de recursos. |
+
 ________________________________________
 
 2.	Arquitectura de Seguridad y Gobernanza
