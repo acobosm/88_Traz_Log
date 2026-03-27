@@ -10,6 +10,7 @@ import BaseOperativaDashboard from './BaseOperativaDashboard'
 import PersonnelTable from './components/PersonnelTable'
 import AssetTable from './components/AssetTable'
 import AuditorDashboard from './AuditorDashboard'
+import ConsultasDashboard from './ConsultasDashboard'
 import { jsPDF } from 'jspdf'
 
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS
@@ -48,6 +49,7 @@ function App() {
   const [isJefeEscena, setIsJefeEscena] = useState(false)
   const [isAuditor, setIsAuditor] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isConsultaPublica, setIsConsultaPublica] = useState(false)
   const [contractInstance, setContractInstance] = useState(null)
   const [inventory, setInventory] = useState([])
   const [incidents, setIncidents] = useState([])
@@ -584,6 +586,7 @@ function App() {
     setIsAuditor(false)
     setIsBaseOperativa(false)
     setIsJefeEscena(false)
+    setIsConsultaPublica(false)
     setCurrentView('inventory')
 
     try {
@@ -640,10 +643,23 @@ function App() {
       setIsAdmin(hasRoleAdmin)
 
       const mapping = await fetchIncidents(contract)
-      await fetchInventory(contract, mapping)
-      await fetchPersonnel(contract, mapping)
+      const inv = await fetchInventory(contract, mapping)
+      const pers = await fetchPersonnel(contract, mapping) || []
 
-      if (!hasRoleBase && !hasRoleJefe && !hasRoleAuditor) {
+      let isGuest = false;
+      if (!hasRoleBase && !hasRoleJefe && !hasRoleAuditor && !hasRoleAdmin) {
+        const isRegistered = Array.isArray(pers) && pers.some(p => p.address && p.address.toLowerCase() === sanitizedAddress.toLowerCase());
+        if (!isRegistered) {
+          console.log("ACCESO PÚBLICO: Usuario no registrado detectado. Iniciando Modo Consultas.");
+          setIsConsultaPublica(true);
+          isGuest = true;
+          setCurrentView('inventory'); // El Dashboard de Consultas se renderizará en la sección principal
+        }
+      }
+
+      if (isGuest) {
+        setStatus({ type: 'success', message: `Portal de Consultas Públicas Activo: ${sanitizedAddress.substring(0, 10).toUpperCase()}...` })
+      } else if (!hasRoleBase && !hasRoleJefe && !hasRoleAuditor) {
         setStatus({ type: 'warning', message: `Conectado como Campo: ${sanitizedAddress.substring(0, 10).toUpperCase()}...` })
       } else {
         const roleName = hasRoleAdmin ? "Admin" : hasRoleAuditor ? "Auditor" : hasRoleBase ? "Base" : "Jefe";
@@ -911,8 +927,10 @@ function App() {
           incidente: (Number(deployId) !== 0 && assignmentInfo) ? `ID-INC${assignmentInfo.id.padStart(3, '0')}` : '---'
         }
       }))
-      setPersonnel(list.filter(p => p !== null))
-    } catch (error) { console.error(error) }
+      const finalPersonnel = list.filter(p => p !== null);
+      setPersonnel(finalPersonnel);
+      return finalPersonnel;
+    } catch (error) { console.error(error); return []; }
   }
 
   const registrarPersonal = async () => {
@@ -1016,11 +1034,13 @@ function App() {
         }
       }))
       setInventory(items)
-    } catch (error) { console.error(error) }
+      return items;
+    } catch (error) { console.error(error); return []; }
   }
 
   const hardRefresh = async () => {
     if (!contractInstance) return
+    console.log("REFRESCANDO DATOS DESDE BLOCKCHAIN...");
     const mapping = await fetchIncidents(contractInstance)
     await fetchInventory(contractInstance, mapping)
     await fetchPersonnel(contractInstance, mapping)
@@ -1075,7 +1095,7 @@ function App() {
               <p style={{ color: 'var(--text-secondary)' }}>Verificando credenciales en la red de auditoría...</p>
             </div>
           </main>
-        ) : (isBaseOperativa || isJefeEscena || isAdmin || isAuditor) ? (
+        ) : (isBaseOperativa || isJefeEscena || isAdmin || isAuditor || isConsultaPublica) ? (
         /* VISTA DE MANDO / AUDITORÍA - PRIORIDAD ALTA */
         currentView === 'tactical' && selectedIncident ? (
           <TacticalPanel
@@ -1090,6 +1110,7 @@ function App() {
             startTimeProp={selectedIncident.timestamp}
             endTimeProp={selectedIncident.timestampFin}
             isActivoProp={selectedIncident.activo}
+            readOnly={isConsultaPublica}
           />
         ) : (
           <main>
@@ -1107,7 +1128,16 @@ function App() {
             </div>
 
             {/* RENDERIZADO EXCLUSIVO POR ROL (Mesa de Trabajo) */}
-            {isAdmin && currentView === 'inventory' ? (
+            {isConsultaPublica ? (
+              <ConsultasDashboard 
+                incidents={incidents}
+                onRefresh={hardRefresh}
+                onViewTactical={(fire) => { setSelectedIncident(fire); setCurrentView('tactical'); }}
+                onViewSummary={(fire) => { setSelectedV360Incident(fire); setShowV360Modal(true); }}
+                formatTime={formatTime}
+                account={account}
+              />
+            ) : isAdmin && currentView === 'inventory' ? (
               <AdminDashboard
                 contract={contractInstance}
                 account={account}

@@ -23,7 +23,7 @@ const formatTime = (ts) => {
     return `📅 ${day}/${month}/${d.getUTCFullYear()} ${hours}:${minutes}`;
 };
 
-const TacticalPanel = ({ eventoId, coordenadas, riesgo, contract, onBack, onGenerateReport, inventory, personnel, startTimeProp, endTimeProp, isActivoProp }) => {
+const TacticalPanel = ({ eventoId, coordenadas, riesgo, contract, onBack, onGenerateReport, inventory, personnel, startTimeProp, endTimeProp, isActivoProp, readOnly = false }) => {
     const mapRef = useRef(null);
     const mapInstance = useRef(null);
     const [status, setStatus] = useState('LISTO');
@@ -513,7 +513,7 @@ const TacticalPanel = ({ eventoId, coordenadas, riesgo, contract, onBack, onGene
                                 {currentRiesgo === 5 && "EXTREMO"}
                             </div>
                         </div>
-                        {isActivo && (
+                        {isActivo && !readOnly && (
                             <button 
                                 onClick={() => setShowRiskModal(true)} 
                                 style={{ background: 'none', border: 'none', color: 'var(--accent-color)', cursor: 'pointer', fontSize: '0.8rem' }}
@@ -522,33 +522,38 @@ const TacticalPanel = ({ eventoId, coordenadas, riesgo, contract, onBack, onGene
                                 ✏️
                             </button>
                         )}
+
                     </div>
 
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        {isActivo && (
+                        {isActivo && !readOnly && (
                             <button onClick={cerrarIncidente} className="btn-secondary" style={{ padding: '0.6rem 0.5rem', fontSize: '0.8rem', border: '1px solid #ff4444', color: '#ff4444', flex: 1, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
                                 🔒 CERRAR INCIDENTE
                             </button>
                         )}
+
                         <button onClick={onBack} className="btn-secondary" style={{ padding: '0.6rem 0.5rem', fontSize: '0.8rem', flex: isActivo ? 0 : 1, minWidth: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
                             ← VOLVER
                         </button>
                     </div>
                 </div>
 
-                {/* ZONA ROJA: RECURSOS */}
-                <div className="card-mini" style={{ border: '2px solid #ff444455', padding: '0.8rem', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                    <h3 style={{ fontSize: '0.7rem', color: '#ff4444', marginBottom: '0.8rem', flexShrink: 0 }}>🔴 RECURSOS DE CAMPO</h3>
-                    <div className="tool-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', overflowY: 'auto', opacity: isActivo ? 1 : 0.4, pointerEvents: isActivo ? 'auto' : 'none' }}>
-                        <button className={`tool-btn ${activeTool === 'engine' ? 'active' : ''}`} onClick={() => handleToolClick('engine')}>🚒 MOTOBOMBA</button>
-                        <button className={`tool-btn ${activeTool === 'crew' ? 'active' : ''}`} onClick={() => handleToolClick('crew')}>👨‍🚒 BRIGADA</button>
-                        <button className={`tool-btn ${activeTool === 'water' ? 'active' : ''}`} onClick={() => handleToolClick('water')}>💧 PUNTO AGUA</button>
-                        <button className={`tool-btn ${activeTool === 'hazard' ? 'active' : ''}`} onClick={() => handleToolClick('hazard')}>⚠️ PELIGRO</button>
-                        <button className="tool-btn disabled" disabled title="Próximamente">🚁 HELI (PRO)</button>
-                        <button className="tool-btn disabled" disabled title="Próximamente">🛩️ CISTERNA (PRO)</button>
+                {/* ZONA ROJA: RECURSOS (HIDDEN FOR CONSULTORS) */}
+                {!readOnly && (
+                    <div className="card-mini" style={{ border: '2px solid #ff444455', padding: '0.8rem', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                        <h3 style={{ fontSize: '0.7rem', color: '#ff4444', marginBottom: '0.8rem', flexShrink: 0 }}>🔴 RECURSOS DE CAMPO</h3>
+                        <div className="tool-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', overflowY: 'auto', opacity: isActivo ? 1 : 0.4, pointerEvents: isActivo ? 'auto' : 'none' }}>
+                            <button className={`tool-btn ${activeTool === 'engine' ? 'active' : ''}`} onClick={() => handleToolClick('engine')}>🚒 MOTOBOMBA</button>
+                            <button className={`tool-btn ${activeTool === 'crew' ? 'active' : ''}`} onClick={() => handleToolClick('crew')}>👨‍🚒 BRIGADA</button>
+                            <button className={`tool-btn ${activeTool === 'water' ? 'active' : ''}`} onClick={() => handleToolClick('water')}>💧 PUNTO AGUA</button>
+                            <button className={`tool-btn ${activeTool === 'hazard' ? 'active' : ''}`} onClick={() => handleToolClick('hazard')}>⚠️ PELIGRO</button>
+                            <button className="tool-btn disabled" disabled title="Próximamente">🚁 HELI (PRO)</button>
+                            <button className="tool-btn disabled" disabled title="Próximamente">🛩️ CISTERNA (PRO)</button>
+                        </div>
+                        {!isActivo && <div style={{ fontSize: '0.6rem', color: '#ff4444', textAlign: 'center', marginTop: '0.4rem' }}>INCIDENTE CERRADO - MODO CONSULTA</div>}
                     </div>
-                    {!isActivo && <div style={{ fontSize: '0.6rem', color: '#ff4444', textAlign: 'center', marginTop: '0.4rem' }}>INCIDENTE CERRADO - MODO CONSULTA</div>}
-                </div>
+                )}
+
 
                 {/* ZONA VERDE: RADAR DE COORDENADAS */}
                 <div className="card-mini" style={{ border: '2px solid #44ff4455', padding: '0.8rem', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>

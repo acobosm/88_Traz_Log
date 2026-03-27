@@ -372,4 +372,14 @@ El ciclo de vida del incidente ha sido validado satisfactoriamente desde la dete
 - **Transparencia**: El uso de Visión 360 garantiza que los auditores tengan el contexto operativo completo antes del cierre legal.
 
 ---
+
+
+### 🚀 Reflexión Técnica: Granularidad NFT vs. Eficiencia ERC-1155
+
+Como parte de la demostración de conocimientos avanzados en estándares de tokenización, se deja constancia del siguiente análisis de diseño:
+
+*   **Enfoque Actual (NFT Unitario)**: Se decidió desarrollar la dApp utilizando IDs unitarios para cada activo. Este modelo garantiza una **Trazabilidad Unitaria Forense Absoluta**, ya que cada asignación o devolución requiere una firma digital obligatoria. Esto asegura que la responsabilidad sobre cada herramienta esté blindada individualmente en la blockchain.
+*   **Visión de Escalabilidad (ERC-1155)**: Se reconoce que, en un escenario de combate de incendios real, el uso del estándar **ERC-1155** permitiría agrupar herramientas por tipos (SFT - Semi-Fungible Tokens). Esto facilitaría la asignación masiva de equipamiento mediante una **sola firma digital**, ganando valiosos minutos tácticos durante el despacho y la recepción de recursos, lo cual representa una ventaja operativa crítica en situaciones de alta intensidad.
+
+
 *Este informe constituye la base técnica para la certificación de la Operación "Simulación Táctica FireOPS" y el cierre del proyecto.*

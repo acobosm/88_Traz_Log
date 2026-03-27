@@ -1,4 +1,5 @@
-# 🔥 FireOPS: Trazabilidad Logística Global de Eventos y Equipamiento en Incendios Forestales
+# 🔥 FireOPS: Trazabilidad Logística Global de Eventos y Equipamiento en Incendios Forestales y Eventos de Quema Controlada
+# Documento base para el diseño inicial de la arquitectura de la dApp
 
 ## 🎯 Objetivo
 
@@ -25,42 +26,45 @@ Definir los roles es clave para asignar permisos (quién puede registrar qué). 
 
 ________________________________________
 
-2.	Arquitectura de Seguridad y Gobernanza
+### 2. Arquitectura de Seguridad y Gobernanza
 
-•	Control de Acceso Granular: Se implementará el estándar AccessControl de OpenZeppelin. Esto permite trabajar con identificadores únicos (bytes32) que representan cada rol, haciendo que el sistema sea Dinámico. Si se necesita dar de baja a un Jefe de Escena o añadir un nuevo Auditor, el Administrador General puede hacerlo mediante una transacción, sin necesidad de modificar o volver a desplegar el código del contrato. Se desplegará Anvil indicándole que use 20 cuentas (opción –accounts 20) para poder tener un abanico más amplio de direcciones para la interacción.
+•	**Control de Acceso Granular:** Se implementará el estándar **AccessControl de OpenZeppelin**. Esto permite trabajar con identificadores únicos (bytes32) que representan cada rol, haciendo que el sistema sea **Dinámico**. Si se necesita dar de baja a un Jefe de Escena o añadir un nuevo Auditor, el Administrador General puede hacerlo mediante una transacción, sin necesidad de modificar o volver a desplegar el código del contrato. Se desplegará Anvil indicándole que use 20 cuentas (opción –accounts 20) para poder tener un abanico más amplio de direcciones para la interacción.
 
-[Tabla2: Comparación de Control de Acceso]
-[Columnas: Característica, Con if (msg.sender == ...), Con AccessControl]
-Escalabilidad, Limitada a una o pocas direcciones fijas., Permite cientos de direcciones por rol.
-Seguridad, Riesgo de "Hardcoding" y errores manuales., Biblioteca auditada por la industria (OpenZeppelin).
-Gobernanza, Estática (requiere actualizar contrato)., Dinámica (gestión de permisos en tiempo real).
-Costo Gas, Variable según la complejidad del if., Optimizado mediante Hashing (keccak256).
-[Fin de la Tabla2]
+#### **Tabla2: Comparación de Control de Acceso**
 
-•	Pausa de Emergencia (Circuit Breaker): Se implementará el estándar Pausable. Este mecanismo permitirá al ADMIN_GENERAL detener temporalmente las funciones de escritura en el Smart Contract ante la detección de anomalías o fallos de infraestructura, asegurando que la integridad de los datos no se vea comprometida durante una incidencia.
-•	Prevención de Reentrada: Se aplicará el modificador nonReentrant en funciones críticas de actualización de inventario y cierre de eventos. Con esto se evitarán ataques de llamadas recursivas que pudiesen intentar duplicar registros de devolución o manipular estados de insumos de forma concurrente.
-•	Trazabilidad de Gobernanza (Audit Logs): Se definirá una arquitectura de eventos indexados que registrará cada cambio en la estructura de permisos. Mediante la emisión de eventos como RoleGranted y RoleRevoked, se facilitará una auditoría forense inmutable sobre quién otorgó o retiró facultades dentro de la plataforma.
+| Característica | Con `if (msg.sender == ...)` | Con `AccessControl` |
+| :--- | :--- | :--- |
+| **Escalabilidad** | Limitada a una o pocas direcciones fijas. | Permite cientos de direcciones por rol. |
+| **Seguridad** | Riesgo de "Hardcoding" y errores manuales. | Biblioteca auditada por la industria (OpenZeppelin). |
+| **Gobernanza** | Estática (requiere actualizar contrato). | Dinámica (gestión de permisos en tiempo real). |
+| **Costo Gas** | Variable según la complejidad del `if`. | Optimizado mediante Hashing (keccak256). |
 
-3.	📝 Trazabilidad del Ciclo del Evento
+
+•	**Pausa de Emergencia (Circuit Breaker):** Se implementará el estándar **Pausable**. Este mecanismo permitirá al **ADMIN_GENERAL** detener temporalmente las funciones de escritura en el Smart Contract ante la detección de anomalías o fallos de infraestructura, asegurando que la integridad de los datos no se vea comprometida durante una incidencia.
+•	**Prevención de Reentrada:** Se aplicará el modificador **nonReentrant** en funciones críticas de actualización de inventario y cierre de eventos. Con esto se evitarán ataques de llamadas recursivas que pudiesen intentar duplicar registros de devolución o manipular estados de insumos de forma concurrente.
+•	**Trazabilidad de Gobernanza (Audit Logs):** Se definirá una arquitectura de eventos indexados que registrará cada cambio en la estructura de permisos. Mediante la emisión de eventos como **RoleGranted** y **RoleRevoked**, se facilitará una auditoría forense inmutable sobre quién otorgó o retiró facultades dentro de la plataforma.
+
+### 3. Trazabilidad del Ciclo del Evento
 
 El ciclo de un incendio se divide en tres fases principales que registrarán eventos inmutables en la blockchain.
 
-3.1.	🚨 Fase Previa - Inventario, Mantenimiento y Medios disponibles (personal y equipamiento)
+#### 3.1. Fase Previa - Inventario, Mantenimiento y Medios disponibles (personal y equipamiento)
 
-En esta fase, el enfoque es la gestión de activos. Se registra la vida útil y el mantenimiento de los insumos críticos.
+En esta fase, el enfoque es la **gestión de activos**. Se registra la vida útil y el mantenimiento de los insumos críticos.
 
-•	Registro de Insumo Único (NFT/Token ID): Cada ítem se registra con un valor único como identificador y su respectivo mantenimiento
-    o	Ejemplo de registro: [evento ASSET_REGISTRATION] La base 'Quito Central' da de alta: "Camión Cisterna Hino. ID: CC-001. Capacidad: 2000 galones. Año: 2024. Estado Inicial: Operativo"., La base 'Guayaquil' da de alta: "Motobomba Portátil. ID: MB-002. Presión: 150 PSI. Fabricante: Waterax. Estado Inicial: Operativo".
+•	**Registro de Insumo Único (NFT/Token ID):** Cada ítem se registra con un valor único como identificador y su respectivo mantenimiento
+    - Ejemplo de registro: [evento **ASSET_REGISTRATION**] La base 'Quito Central' da de alta: "Camión Cisterna Hino. **ID: CC-001**. Capacidad: 2000 galones. Año: 2024. Estado Inicial: Operativo"., La base 'Guayaquil' da de alta: "Motobomba Portátil. **ID: MB-002**. Presión: 150 PSI. Fabricante: Waterax. Estado Inicial: Operativo".
 
-•	Eventos de Mantenimiento: Se registra la fecha y el resultado del último evento, como por ejemplo su última revisión o mantenimiento.
-    o	Ejemplo de Evento: [evento MAINTENANCE_LOG] La base 'Quito Central' registra: "Reemplazo de batería de Radio Motorola ID-A123. Fecha: 2025-12-01. Operador: Pedro Álava."
-    o	Ejemplo de Insumo: [evento INVENTORY_STATUS] La base 'Guayaquil' registra: "Stock de mangueras (3 pulgadas) actualizado a 50 unidades. Última reposición: 2025-11-20."
+•	**Eventos de Mantenimiento:** Se registra la fecha y el resultado del último evento, como por ejemplo su última revisión o mantenimiento.
 
-•	Registro de personal disponible: Para saber cuántas personas se tendrían disponibles para cualquier evento
-    o	Ejemplo de registro de Personal: 
-        - Contexto: Inicio de guardia en la Estación de Bomberos. El personal se "loguea" en la dApp con su Wallet institucional para quedar activo en el pool de despacho.
+- Ejemplo de Evento: [evento **MAINTENANCE_LOG**] La base 'Quito Central' registra: "Reemplazo de batería de Radio Motorola **ID-RD003**. Fecha: 2025-12-01. Operador: Pedro Álava."
+- Ejemplo de Insumo: [evento **INVENTORY_STATUS**] La base 'Guayaquil' registra: "Stock de mangueras (3 pulgadas) **ID-MG002** actualizado a 50 unidades. Última reposición: 2025-11-20."
 
-        - Datos Registrados en Blockchain:
+•	**Registro de personal disponible:** Para saber cuántas personas se tendrían disponibles para cualquier evento
+- Ejemplo de registro de Personal: 
+    - **Contexto:** Inicio de guardia en la Estación de Bomberos. El personal pide ser registrado en la dApp con su Wallet institucional para quedar activo en el pool de despacho.
+
+        - **Datos Registrados en Blockchain:**
 
             * ID Persona: Wallet_0x123...abc (Vinculada al ID de empleado).
 
@@ -70,107 +74,145 @@ En esta fase, el enfoque es la gestión de activos. Se registra la vida útil y 
 
             * Certificaciones Activas: Curso CPIF (Combatiente de Incendios Forestales) - Vigente hasta 2026.
 
-        - Acción de la dApp: Al momento de un despacho, el sistema filtra automáticamente: "Necesito 5 brigadistas que estén en estado 'Disponible' y tengan su certificación vigente".
+        - Acción de la dApp: Al momento de un despacho, el sistema muestra todos los brigadistas que estén en estado 'Disponible'.
 
         - Resultado: El Comandante de Incidentes ve en su Dashboard una lista de personal real, no teórica, evitando enviar a alguien que ya está en otra misión o que no tiene el reentrenamiento al día.
 
-3.2.	🚒 Fase Durante (Combate y Asignación)
+#### 3.2.	🚒 Fase Durante (Combate y Asignación)
 
 Aquí se registra la cadena de custodia de los insumos.
 
 Pasos Clave del Evento de Incendio:
 
-•	Creación del Evento (rol JEFE_ESCENA): Se registra el inicio del incidente: [ID-INC002], Coordenadas -0.1807, -78.4678, Nivel de Riesgo 4, Fecha y Hora de inicio.
+•	Creación del Evento (rol **JEFE_ESCENA**): Se registra el inicio del incidente: [**ID-INC002**], Coordenadas -0.1807, -78.4678, Nivel de Riesgo 4, Fecha y Hora de inicio.
 
-•	Asignación de Recursos (rol JEFE_ESCENA): Se vinculan los insumos del inventario al evento y a la Brigada responsable.
-    o	Ejemplo: [evento ASSIGNMENT_LOG] Jefe de Escena ID-JF05 asigna: "Camión Cisterna ID-CC007 + 5 radios ID-RF00x a Brigada 'Cóndor' (Líder de brigada: Juan Pérez)."
+•	Asignación de Recursos (rol **JEFE_ESCENA**): Se vinculan los insumos del inventario al evento y a la Brigada responsable.
+    o	Ejemplo: [evento ASSIGNMENT_LOG] Jefe de Escena **ID-JF05** asigna: "Camión Cisterna **ID-CC007** + 5 radios **ID-RF00x** a Brigada."
 
-•	Registro de Uso y Consumo (rol OPERADOR): Los brigadistas registran el uso y el estado final de los insumos.
-    o	Ejemplo: [evento CONSUMPTION_LOG] Operador ID-BG04 registra: "Consumo de 500 litros de líquido retardante del Cisterna ID-CC007. Hito: Línea de contención establecida al 50%."
+•	Registro de Uso y Consumo (rol **OPERADOR**): Los brigadistas registran el uso y el estado final de los insumos.
+    o	Ejemplo: [evento CONSUMPTION_LOG] Operador **ID-BG04** registra: "Consumo de 500 litros de líquido retardante del Cisterna **ID-CC007**. Hito: Línea de contención establecida al 50%."
 
-3.3.	✅ Fase Post (Verificación y Rendición de Cuentas)
+#### 3.3.	✅ Fase Post (Verificación y Rendición de Cuentas)
 
 En esta fase se cierra el ciclo del incendio y se audita el estado final de los recursos.
 
-•	Cierre del Evento (rol JEFE_ESCENA): Se registra la hora de control/extinción y el resumen de daños.
+•	Cierre del Evento (rol **JEFE_ESCENA**): Se registra la hora de control/extinción y el resumen de daños.
 
-•	Auditoría de Insumos (rol BASE_OPERATIVA): Se verifica la devolución de los insumos asignados y su estado.
-    o	Ejemplo: [evento AUDIT_LOG] Base Operativa verifica: "Radio ID-RF005 devuelto en estado 'Daño Menor'. Se requiere reemplazo de antena. Genera ticket de mantenimiento/reposición."
+•	Auditoría de Insumos (rol **BASE_OPERATIVA**): Se verifica la devolución de los insumos asignados y su estado.
+    o	Ejemplo: [evento AUDIT_LOG] Base Operativa verifica: "Radio **ID-RF005** devuelto en estado 'Daño Menor'. Se requiere reemplazo de antena. Se va a Taller por mantenimiento/reposición."
 
-•	Reporte de Transparencia (rol AUDITOR/CONSULTOR): Se genera un resumen consultable por el público: "Incendio Forestal [ID-INC001]: Recursos asignados, Consumo total de agua/retardante,"
+•	Reporte de Transparencia (rol **AUDITOR**): Se genera un resumen consultable por el público: "Incendio Forestal [**ID-INC001**]: Recursos asignados, Consumo total de agua/retardante,"
 ________________________________________
 
-4.	💾 Estructuras Clave de Solidity (Smart Contract)
+### 4.	💾 Estructuras Clave de Solidity (Smart Contract)
 
-El contrato necesitará mapeos y estructuras para almacenar los datos de manera eficiente.
+El contrato utiliza una arquitectura de **Enums**, **Mappings** y **Structs** para garantizar la integridad y eficiencia de los datos.
 
-Estructuras de Datos:
+#### 4.1. Enumeraciones (Estados de Trazabilidad)
 
-// 1. Representación del Personal (Fase 1)
+```solidity
+enum EstadoInsumo {     // Verificación Física (Base Operativa)
+    Disponible,
+    EnUso,
+    Taller,
+    Perdido,
+    EnRetorno
+}
+
+enum EstadoReportado {  // Declaración Jurada (Brigadista en Campo)
+    Operativo,
+    DanoMenor,
+    DanoCritico,
+    Perdido
+}
+```
+
+#### 4.2. Representación del Personal (Fase 1)
+
+```solidity
 struct Personal {
     address billetera;      // Cuenta de Anvil (8-15 para Operadores)
     string nombre;
     string especialidad;    // Maquinista, Radio, Conductor, etc.
     bool estaActivo;        // Control administrativo de baja/alta
 }
+```
 
-// 2. Gestión de Activos Físicos (Fase 1, 2 y 3)
+#### 4.3. Gestión de Activos Físicos (Fase 1, 2 y 3)
+
+```solidity
 struct Insumo {
-    bytes32 codigoInventario; // ID único optimizado (ej: CC-001)
+    bytes32 codigoInventario;   // ID único optimizado (ej: CC-001)
     string descripcion;
-    address basePropietaria;  // Base que dio el alta (Cuentas 1-2)
-    address custodioActual;   // address(0) si está en base, o la del Operador
-    uint8 estado;             // 0: Disponible, 1: En Uso, 2: Taller, 3: Perdido
-    uint8 estadoReportadoF2;  // Lo que el operador reportó en campo (Fase 2)
+    address basePropietaria;    // Base que dio el alta (Cuentas 1-2)
+    address custodioActual;     // address(0) si está en base, o la del Operador
+    EstadoInsumo estado;        // Verificación Física de la Base
+    EstadoReportado estadoReportadoF2; // Declaración del Brigadista
     uint256 ultimoMantenimiento;
+    uint256 consumoNominal;     // Consumo esperado por hora
+    uint256 inicioUso;          // Timestamp de asignación para auditoría
 }
+```
 
-// 3. Control del Incidente (Fase 2 y 3)
+#### 4.4. Control del Incidente (Fase 2 y 3)
+
+```solidity
 struct EventoIncendio {
     uint256 eventoID;
-    address jefeDeEscena;     // Cuenta de Anvil (3-6)
+    address jefeDeEscena;       // Cuenta de Anvil (3-6)
     uint256 timestampInicio;
     uint256 timestampFin;
     string coordenadas;
-    uint256 riesgo;           // Escala 1-5
-    bool activo;              // True mientras no se cierre en Fase 3
+    uint256 riesgo;             // Escala 1-5
+    bool activo;
+    bytes32[] recursosAsignados; // Seguimiento para cierre automático
 }
+```
 
-// 4. Diario de Operaciones (Logs de Auditoría)
+#### 4.5. Diario de Operaciones (Logs de Auditoría)
+
+```solidity
 struct LogOperativo {
     uint256 eventoID;
     bytes32 codigoInsumo;
-    address operador;         // Quién usó/reportó el equipo
+    address operador;           // Quién usó/reportó el equipo
     uint256 timestamp;
-    string detalles;          // "Línea de contención al 50%", "Daño en manguera"
-    bool esDiscrepancia;      // Marcador automático para el Auditor (Fase 3)
+    string detalles;            // "Línea de contención al 50%", "Daño en manguera"
+    bool esDiscrepancia;        // Marcador automático para el Auditor
 }
-Mapeos de Almacenamiento:
-[Tabla3: Mapeos]
-[Columnas: Mapeo; Propósito Técnico]
-mapping(bytes32 => Insumo) public inventario;	Permite consultar cualquier equipo instantáneamente usando su código (ID).
-mapping(address => Personal) public brigadistas;	Vincula una dirección de billetera con el perfil técnico de la persona.
-mapping(uint256 => EventoIncendio) public incendios;	Almacena los detalles generales de cada evento por su número de ID.
-mapping(uint256 => LogOperativo[]) public bitacoraEvento;	Guarda una lista de todos los movimientos y reportes de un incendio específico.
-mapping(address => bool) public basesAutorizadas;	Lista blanca de las cuentas de Anvil que pueden cargar inventario inicial.
-[Fin de la Tabla3]
+```
 
-5.	 Diagrama de Bloques dApp Fuego Zero
+#### **Tabla3: Almacenamiento y Mapeos**
+
+| Mapeo / Estructura | Propósito Técnico |
+| :--- | :--- |
+| `mapping(bytes32 => Insumo) public inventario` | Búsqueda instantánea de herramientas por su ID industrial. |
+| `mapping(address => Personal) public brigadistas` | Registro de identidades Web3 para el personal activo en campo. |
+| `mapping(uint256 => EventoIncendio) public incendios` | Bitácora de todos los incendios registrados (ACTIVOS/CERRADOS). |
+| `mapping(uint256 => LogOperativo[]) public bitacoraEvento` | Historial inmutable de hitos técnicos vinculado a cada incidente. |
+| `mapping(address => bool) public basesAutorizadas` | Lista blanca de administradores autorizados para carga logística inicial. |
+| `address[] public listaPersonal` | Arreglo iterable para que el Frontend pueda listar a todo el personal. |
+| `mapping(bytes32 => AuditoriaPendiente) public auditoriasPendientes` | **Fase 3**: Gestiona el Handshake y la verificación física del equipo. |
+| `mapping(address => uint256) public despliegueActual` | **Seguridad**: Evita la doble asignación de brigadistas en campo. |
+| `mapping(address => uint256) public contadorRecursos` | **Control**: Seguimiento numérico de activos bajo custodia por usuario. |
+
+### 5.	 Diagrama de Bloques dApp Fuego Zero
+
 ![Diagrama de Bloques dApp Fuego Zero](imagenes/01_Diag_bloques_dApp.png)
  
-6.	🏛️ Las Fases del Bloque Central:
+### 6.	🏛️ Las Fases del Bloque Central:
 
-6.1.	Fase 1: Previa (Inventario y Mantenimiento)
+#### 6.1.	Fase 1: Previa (Inventario y Mantenimiento)
 
 Se enfoca en la gestión de activos y la preparación, garantizando que todos los recursos que potencialmente se usarán en un incendio forestal estén documentados, localizados y en estado operativo verificado.
 
-Establecer la cadena de origen de cada activo crítico, garantizando que su estado, ubicación y historial de servicio sean inmutables antes de su asignación a un evento de emergencia.
+Establecer la **cadena de origen** de cada activo crítico, garantizando que su estado, ubicación y historial de servicio sean **inmutables** antes de su asignación a un evento de emergencia.
 
-El Actor Principal: BASE_OPERATIVA: Este rol, típicamente asignado al jefe de logística o al comandante de la estación de bomberos, tiene el poder de escribir datos iniciales y de mantenimiento en el Smart Contract (SC). Es la persona que físicamente tiene la custodia y responsabilidad del equipo, y es la única con permisos para Registrar Insumos y Registrar Mantenimiento del Equipamiento que lo amerita.
+El Actor Principal: **BASE_OPERATIVA.** Este rol, típicamente asignado al jefe de logística o al comandante de la estación de bomberos, tiene el poder de escribir datos iniciales y de mantenimiento en el Smart Contract (SC). Es la persona que físicamente tiene la custodia y responsabilidad del equipo, y es la única con permisos para Registrar Insumos y Registrar Mantenimiento del Equipamiento que lo amerita.
 
-Procesos Centrales: La Fase 1 se compone de dos procesos de escritura de datos esenciales: la creación del activo y su seguimiento periódico.
+**Procesos Centrales**: La Fase 1 se compone de dos procesos de escritura de datos esenciales: la creación del activo y su seguimiento periódico.
 
-1.	Proceso de Creación: Registro de Nuevo Insumo
+    ##### 6.1.1. Proceso de Creación: Registro de Nuevo Insumo
 
 Este proceso ocurre una sola vez en la vida de un activo y le da un ID único en la Blockchain.
 

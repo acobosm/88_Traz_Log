@@ -50,8 +50,8 @@ const AdminDashboard = ({ contract, account, personnel, onRefresh, setStatus }) 
         setLoading(true);
         setStatus({ type: 'info', message: `${action === 'GRANT' ? 'ASIGNANDO' : 'REVOCANDO'} ROL...` });
         try {
-            const tx = action === 'GRANT' 
-                ? await contract.grantRole(roleHash, targetAddress) 
+            const tx = action === 'GRANT'
+                ? await contract.grantRole(roleHash, targetAddress)
                 : await contract.revokeRole(roleHash, targetAddress);
             await tx.wait();
             setStatus({ type: 'success', message: 'ROL ACTUALIZADO CORRECTAMENTE' });
@@ -116,9 +116,9 @@ const AdminDashboard = ({ contract, account, personnel, onRefresh, setStatus }) 
                     </div>
                     <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: '0.7rem', color: '#666', marginBottom: '0.5rem' }}>ESTADO DEL CONTRATO:</div>
-                        <button 
-                            className={`btn ${isPaused ? 'btn-success' : 'btn-danger'}`} 
-                            onClick={togglePause} 
+                        <button
+                            className={`btn ${isPaused ? 'btn-success' : 'btn-danger'}`}
+                            onClick={togglePause}
                             disabled={loading}
                             style={{ minWidth: '180px', fontWeight: 'bold' }}
                         >
@@ -131,16 +131,16 @@ const AdminDashboard = ({ contract, account, personnel, onRefresh, setStatus }) 
             {/* GESTIÓN DE ROLES */}
             <div className="card">
                 <h3 style={{ borderLeft: '4px solid var(--accent-color)', paddingLeft: '1rem', marginBottom: '1.5rem' }}>👥 GESTIÓN DE AUTORIDAD Y PERSONAL</h3>
-                
+
                 {/* FORMULARIO DE ALTA (NUEVO) */}
                 <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '12px', border: '1px dashed #444', marginBottom: '2rem' }}>
                     <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', color: '#888' }}>➕ REGISTRAR NUEVA AUTORIDAD (ALTA)</h4>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', alignItems: 'flex-end' }}>
                         <div>
                             <label style={{ fontSize: '0.7rem', color: '#666', display: 'block', marginBottom: '0.4rem' }}>DIRECCIÓN WALLET (0x...)</label>
-                            <input 
-                                type="text" 
-                                className="skin-select" 
+                            <input
+                                type="text"
+                                className="skin-select"
                                 style={{ width: '100%', padding: '0.6rem', backgroundImage: 'none', fontSize: '0.8rem' }}
                                 placeholder="0x..."
                                 value={newPerson.address}
@@ -149,9 +149,9 @@ const AdminDashboard = ({ contract, account, personnel, onRefresh, setStatus }) 
                         </div>
                         <div>
                             <label style={{ fontSize: '0.7rem', color: '#666', display: 'block', marginBottom: '0.4rem' }}>NOMBRE TÁCTICO</label>
-                            <input 
-                                type="text" 
-                                className="skin-select" 
+                            <input
+                                type="text"
+                                className="skin-select"
                                 style={{ width: '100%', padding: '0.6rem', backgroundImage: 'none', fontSize: '0.8rem' }}
                                 placeholder="Ej: Kento Nanami"
                                 value={newPerson.name}
@@ -160,8 +160,8 @@ const AdminDashboard = ({ contract, account, personnel, onRefresh, setStatus }) 
                         </div>
                         <div>
                             <label style={{ fontSize: '0.7rem', color: '#666', display: 'block', marginBottom: '0.4rem' }}>ROL INICIAL</label>
-                            <select 
-                                className="skin-select" 
+                            <select
+                                className="skin-select"
                                 style={{ width: '100%', padding: '0.6rem', fontSize: '0.8rem' }}
                                 value={newPerson.role}
                                 onChange={(e) => setNewPerson({ ...newPerson, role: e.target.value })}
@@ -171,8 +171,8 @@ const AdminDashboard = ({ contract, account, personnel, onRefresh, setStatus }) 
                                 <option value={ROLES.OPERADOR_ROLE}>🏃 BRIGADISTA / OPERADOR</option>
                             </select>
                         </div>
-                        <button 
-                            className="btn" 
+                        <button
+                            className="btn"
                             style={{ padding: '0.6rem' }}
                             onClick={registrarPersonal}
                             disabled={loading}
@@ -198,11 +198,11 @@ const AdminDashboard = ({ contract, account, personnel, onRefresh, setStatus }) 
                                     <td style={{ padding: '1rem', fontWeight: 'bold' }}>{p.name}</td>
                                     <td style={{ padding: '1rem' }}><code style={{ color: '#666', fontSize: '0.8rem' }}>{p.address.slice(0, 7)}...{p.address.slice(-5)}</code></td>
                                     <td style={{ padding: '1rem' }}>
-                                        <span className="status-pill" style={{ 
-                                            fontSize: '0.65rem', 
-                                            background: p.isAuditor ? 'rgba(77, 255, 77, 0.1)' : (p.isJefe ? 'rgba(255,140,0,0.1)' : 'rgba(0,150,255,0.1)'), 
-                                            color: p.isAuditor ? '#00ff88' : (p.isJefe ? '#ff8c00' : '#0096ff'), 
-                                            border: `1px solid ${p.isAuditor ? '#00ff88' : (p.isJefe ? '#ff8c00' : '#0096ff')}` 
+                                        <span className="status-pill" style={{
+                                            fontSize: '0.65rem',
+                                            background: p.isAuditor ? 'rgba(77, 255, 77, 0.1)' : (p.isJefe ? 'rgba(255,140,0,0.1)' : 'rgba(0,150,255,0.1)'),
+                                            color: p.isAuditor ? '#00ff88' : (p.isJefe ? '#ff8c00' : '#0096ff'),
+                                            border: `1px solid ${p.isAuditor ? '#00ff88' : (p.isJefe ? '#ff8c00' : '#0096ff')}`
                                         }}>
                                             {p.isAuditor ? '🕵️ AUDITOR' : (p.isJefe ? '👨‍🚒 JEFE DE ESCENA' : '🏃 OPERADOR')}
                                         </span>
@@ -211,8 +211,8 @@ const AdminDashboard = ({ contract, account, personnel, onRefresh, setStatus }) 
                                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                                             {!p.isJefe ? (
                                                 <>
-                                                    <button 
-                                                        className="btn btn-secondary" 
+                                                    <button
+                                                        className="btn btn-secondary"
                                                         style={{ fontSize: '0.7rem', padding: '0.4rem 0.8rem', border: '1px solid #ff8c00', color: '#ff8c00' }}
                                                         onClick={() => handleUpdateRole(p.address, ROLES.JEFE_ESCENA_ROLE, 'GRANT')}
                                                         disabled={loading}
@@ -220,8 +220,8 @@ const AdminDashboard = ({ contract, account, personnel, onRefresh, setStatus }) 
                                                         ⬆️ JEFE
                                                     </button>
                                                     {!p.isAuditor && (
-                                                        <button 
-                                                            className="btn btn-secondary" 
+                                                        <button
+                                                            className="btn btn-secondary"
                                                             style={{ fontSize: '0.7rem', padding: '0.4rem 0.8rem', border: '1px solid #4dff4d', color: '#4dff4d' }}
                                                             onClick={() => handleUpdateRole(p.address, ROLES.AUDITOR_ROLE, 'GRANT')}
                                                             disabled={loading}
@@ -231,8 +231,8 @@ const AdminDashboard = ({ contract, account, personnel, onRefresh, setStatus }) 
                                                     )}
                                                 </>
                                             ) : (
-                                                <button 
-                                                    className="btn btn-secondary" 
+                                                <button
+                                                    className="btn btn-secondary"
                                                     style={{ fontSize: '0.7rem', padding: '0.4rem 0.8rem', border: '1px solid #0096ff', color: '#0096ff' }}
                                                     onClick={() => handleUpdateRole(p.address, ROLES.JEFE_ESCENA_ROLE, 'REVOKE')}
                                                     disabled={loading}
@@ -249,11 +249,12 @@ const AdminDashboard = ({ contract, account, personnel, onRefresh, setStatus }) 
                 </div>
             </div>
 
-            {/* AUDITORÍA DE SEGURIDAD */}
+            {/* AUDITORÍA DE SEGURIDAD (FUNCIONALIDADES NUEVAS A FUTURO)
             <div className="card" style={{ opacity: 0.7 }}>
                 <h3 style={{ fontSize: '0.9rem', color: '#666' }}>⚙️ AJUSTES DE AUDITORÍA</h3>
                 <p style={{ fontSize: '0.8rem', color: '#444' }}>Funciones de auditoría y configuración de red próximamente disponibles para la Cuenta #0.</p>
             </div>
+            */}
         </div>
     );
 };

@@ -70,20 +70,7 @@ const AuditorDashboard = ({ contract, inventory, personnel, incidents, hardRefre
                 // 2. Unificar y filtrar duplicados por motivo + incidente
                 const allFindings = [...manualDiscs, ...autoAlerts];
                 
-                // NOTA TÁCTICA: Si estamos en la simulación y por algún motivo el proveedor 
-                // de red local limpia eventos, inyectamos el hallazgo crítico del INC-003
-                if (!allFindings.some(f => f.incidenteId === "3" && f.serialId.includes("MB002"))) {
-                    allFindings.push({
-                        incidenteId: "3",
-                        serialId: "ID-MB002 (Motobomba)",
-                        motivo: "🏁 ALERTA DE CONSUMO: Real 210L vs Máx 168L (+25%)"
-                    });
-                    allFindings.push({
-                        incidenteId: "3",
-                        serialId: "ID-MG001 (Manguera)",
-                        motivo: "Recibido con daño en válvula de acople por Mando Base."
-                    });
-                }
+                // Registro de hallazgos concluido
 
                 setDiscrepancies(allFindings);
             } catch (err) {
@@ -123,7 +110,7 @@ const AuditorDashboard = ({ contract, inventory, personnel, incidents, hardRefre
                     <div>
                         <div style={{ fontSize: '0.7rem', color: '#888' }}>DISCREPANCIAS ACTIVAS</div>
                         <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#ff4d4d' }}>
-                            {Math.max(0, discrepancies.length - 2)}
+                            {discrepancies.length}
                         </div>
                     </div>
                 </div>
@@ -305,30 +292,7 @@ const AuditorDashboard = ({ contract, inventory, personnel, incidents, hardRefre
                                                     }
                                                 }
 
-                                                // INYECTOR TÁCTICO PARA INC-003 (Garantía de Entrega)
-                                                if (fire.id === "3") {
-                                                    const mb002Hash = inventory.find(i => i.serialId.includes("MB002"))?.hash;
-                                                    const mg001Hash = inventory.find(i => i.serialId.includes("MG001"))?.hash;
-                                                    
-                                                    if (!allLogs.some(l => l.detalles.includes("ALERTA DE CONSUMO") && l.codigoInsumo === mb002Hash)) {
-                                                        allLogs.push({
-                                                            timestamp: Math.floor(Date.now() / 1000) - 3600,
-                                                            operador: "AUDITORÍA AUTOMÁTICA",
-                                                            detalles: "ALERTA DE CONSUMO: Real 210L vs Máx 168L (+25%)",
-                                                            codigoInsumo: mb002Hash,
-                                                            isAlert: true
-                                                        });
-                                                    }
-                                                    if (!allLogs.some(l => l.detalles.includes("HALLAZGO REGISTRADO") && l.codigoInsumo === mg001Hash)) {
-                                                        allLogs.push({
-                                                            timestamp: Math.floor(Date.now() / 1000) - 1800,
-                                                            operador: "MANDO BASE OPERATIVA",
-                                                            detalles: "HALLAZGO REGISTRADO: Recibido con daño en válvula de acople por Mando Base.",
-                                                            codigoInsumo: mg001Hash,
-                                                            isAlert: true
-                                                        });
-                                                    }
-                                                }
+                                                // Registro de logs concluido
                                             } catch (e) { console.error(e); }
 
                                             const fullySorted = allLogs.sort((a, b) => b.timestamp - a.timestamp);
