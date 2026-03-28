@@ -53,7 +53,8 @@ El ciclo de un incendio se divide en tres fases principales que registrarán eve
 En esta fase, el enfoque es la **gestión de activos**. Se registra la vida útil y el mantenimiento de los insumos críticos.
 
 •	**Registro de Insumo Único (NFT/Token ID):** Cada ítem se registra con un valor único como identificador y su respectivo mantenimiento
-    - Ejemplo de registro: [evento **ASSET_REGISTRATION**] La base 'Quito Central' da de alta: "Camión Cisterna Hino. **ID: CC-001**. Capacidad: 2000 galones. Año: 2024. Estado Inicial: Operativo"., La base 'Guayaquil' da de alta: "Motobomba Portátil. **ID: MB-002**. Presión: 150 PSI. Fabricante: Waterax. Estado Inicial: Operativo".
+    - Ejemplo de registro: [evento **ASSET_REGISTRATION**] La base 'Quito Central' da de alta: "Camión Cisterna Hino. **ID: CC-001**. Capacidad: 2000 litros. Año: 2024. Estado Inicial: Operativo"., La base 'Guayaquil' da de alta: "Motobomba Portátil. **ID: MB-002**. Presión: 150 PSI. Fabricante: Waterax. Estado Inicial: Operativo".
+
 
 •	**Eventos de Mantenimiento:** Se registra la fecha y el resultado del último evento, como por ejemplo su última revisión o mantenimiento.
 
@@ -212,289 +213,300 @@ El Actor Principal: **BASE_OPERATIVA.** Este rol, típicamente asignado al jefe 
 
 **Procesos Centrales**: La Fase 1 se compone de dos procesos de escritura de datos esenciales: la creación del activo y su seguimiento periódico.
 
-    ##### 6.1.1. Proceso de Creación: Registro de Nuevo Insumo
+#### 6.1.1. Proceso de Creación: Registro de Nuevo Insumo
 
 Este proceso ocurre una sola vez en la vida de un activo y le da un ID único en la Blockchain.
 
-[Tabla 4: Proceso de Creación: Registro de Nuevo Insumo]
-[Columnas: Elemento, Descripción, Función SC (Solidity), Impacto en SC]
-Insumo Único, Equipos con trazabilidad individual y hoja de vida (Ej: Camión, Radio)., registrarInsumo(...), Crea un struct único con ID (bytes32) y estado inicial.
-Suministros (Consumibles), Recursos que se gestionan por cantidad o volumen (Ej: Líquido retardante, mangueras)., inicializarSuministro(...), Crea una entrada en un mapeo de cantidades (mapping).
-Gestión de Stock, Acción de actualizar las cantidades disponibles de suministros., actualizarStock(codigo, cantidad), Modifica el contador numérico (suma/resta) del suministro existente.
-[Fin de la Tabla 4]
+#### **Tabla 4: Proceso de Creación: Registro de Nuevo Insumo**
 
-Ejemplo de Registro: La BASE_OPERATIVA firma una transacción para registrar un "Kit de Linterna Táctica ID-LT005" en estado "Disponible", con fecha de registro: año-mes-dia.
+| Elemento | Descripción | Función SC (Solidity) | Impacto en SC |
+| :--- | :--- | :--- | :--- |
+| **Insumo Único** | Registro individual de equipos con trazabilidad (Ej: Motobomba, Radio). | `registrarInsumo(...)` | Crea un struct `Insumo` con ID (bytes32), estado inicial y consumo nominal. |
+| **Carga Masiva** | Registro eficiente de múltiples activos en una sola transacción (CSV). | `registrarInsumosBatch(...)` | Itera y crea múltiples registros optimizando el consumo de gas en el despliegue inicial. |
+| **Trazabilidad de Vida** | Registro inmutable de la base propietaria y fecha de alta en el sistema. | `_registrarInsumo(...)` | Establece el `tx.origin` como propietario y fija el timestamp de `ultimoMantenimiento`. |
 
-2.	Proceso de Seguimiento: Log de Mantenimiento
 
-Este proceso es la prueba de que el equipo sigue siendo apto para el servicio y añade la trazabilidad del ciclo de vida del activo.
 
-[Tabla 5: Proceso de Seguimiento: Log de Mantenimiento]
-[Columnas: Elemento, Descripción, Función SC (Solidity), Impacto en SC]
-Log de Mantenimiento, Registro de revisiones, reparaciones o reemplazo de piezas (Ej: Cambio de aceite motobomba)., logMantenimiento(codigo, detalles, nuevoEstado), Añade un nuevo evento al historial (array) del Insumo y actualiza su disponibilidad.
-Actualización de Estado, Cambio en la operatividad del equipo tras la revisión., actualizarEstado(codigo, nuevoEstado), Modifica el campo estado en el struct del Insumo (Ej: de "Taller" a "OK").
-Timestamp Técnico, Registro automático de la fecha y hora de la intervención., block.timestamp, Actualiza de forma inmutable el campo ultimoMantenimiento para futuras alertas.
-[Fin de la Tabla 5]
+**Ejemplo de Registro**: La *BASE_OPERATIVA* firma una transacción para registrar un "Kit de Linterna Táctica **ID-LT005**" en estado "Disponible".
 
-Ejemplo de Mantenimiento: La BASE_OPERATIVA  registra: "Reemplazo de batería y calibración de antena en Radio ID-R15". La función actualiza el ultimoMantenimiento y cambia el estado a Disponible, permitiendo que el JEFE_ESCENA pueda asignarlo en la Fase 2.
+#### 6.1.2. Proceso de Seguimiento de activos
 
-3.	 Proceso de Gestión: Suministros y Stock (Consumibles)
+Este proceso ocurre una vez finalizado el incidente y permite actualizar el estado del activo y marcar como Taller a aquellos que no están aptos para ser desplegados nuevamente en otros incidentes.
 
-A diferencia de los activos fijos, los suministros se gestionan por volumen. Este proceso garantiza que la base operativa tenga los recursos necesarios (agua, espuma, combustible) antes del despacho, permitiendo un control de inventario dinámico.
+#### **Tabla 5: Seguimiento y Sincronización de Estado Post-Evento**
 
-[Tabla 6: Proceso de Gestión: Suministros y Stock (Consumibles)]
-[Columnas: Elemento, Descripción, Función SC (Solidity), Impacto en SC]
-Definición de Suministro, Creación del catálogo de materiales consumibles y su unidad de medida., inicializarSuministro(nombre, UoM), Crea una entrada única en el mapeo de suministros con stock inicial cero.
-Gestión de Stock, Carga inicial o reposición de cantidades físicas al inventario., actualizarStock(codigo, cantidad), Realiza una operación aritmética (suma) sobre el saldo existente del suministro.
-Unidad de Medida (UoM), Estándar de métrica (Litros, Metros, PSI) para evitar errores de carga., Parámetro en inicializarSuministro, Define la constante con la que se realizarán los cálculos de consumo en la Fase 2.
-[Fin de la Tabla 6]
+| Elemento | Descripción | Función SC (Solidity) | Impacto en SC |
+| :--- | :--- | :--- | :--- |
+| **Sello de Mantenimiento** | Actualización automática de la hoja de vida del equipo al finalizar su uso. | `firmarDeslinde(...)` | Actualiza de forma inmutable el campo `ultimoMantenimiento` con el sello de tiempo actual. |
+| **Bloqueo Operativo** | Restricción de salida para equipos reportados con daños o en taller. | `require(estado == Disponible)` | Impide que el Jefe de Escena asigne equipos que no han pasado por una revisión física conforme. |
+| **Timestamp de Auditoría** | Registro histórico del momento exacto del último chequeo físico en base. | `block.timestamp` | Fija la fecha de la última auditoría de integridad realizada por la Base Operativa. |
 
-4.	Proceso de Creación: Registro y Acreditación de Personal
+> **⚠️ Nota de Integridad Logística y Trazabilidad de Daños:**
+> El diseño actual del sistema prioriza la **seguridad operativa** y la **inmutabilidad de la evidencia**. Al quedar un equipo marcado como *"Taller"* durante el proceso de devolución post-incendio (`firmarDeslinde`), el contrato bloquea automáticamente su re-despliegue. Esto garantiza una trazabilidad forense absoluta: se sabe con exactitud en qué incidente y bajo qué custodio se produjo la avería, impidiendo que una herramienta defectuosa salga a una nueva misión por error humano.
+>
+> **Recomendación de Escalabilidad (Roadmap):** 
+> Como mejora futura, se recomienda la adopción del estándar **ERC-1155** para la gestión de metadatos dinámicos. Esto permitiría implementar una función de *"Reparación Certificada"* que, tras una firma digital del departamento técnico, actualice el estado del activo de *"Taller"* a *"Disponible"*, cerrando así el ciclo de vida del recurso sin comprometer la cadena de custodia previa.
 
-Este proceso establece la identidad digital y operativa de cada interviniente. No solo registra quién es el usuario, sino que define sus capacidades legales y técnicas dentro de la emergencia mediante un sistema de Control de Acceso Basado en Roles (RBAC).
+**Ejemplo de Sincronización Post-Evento**: Al finalizar el incidente *"Prosperina"*, la **BASE_OPERATIVA** realiza la recepción física de la Motobomba **ID-MB001**. Al detectar un fallo técnico, el operador la marca con estado *"Taller"* mediante la función `registrarAuditoria`. Al completarse el handshake (`firmarDeslinde`), el Smart Contract graba el último sello de tiempo operativo y bloquea el activo para re-desliegues nuevos. Esto deja una evidencia digital absoluta: el equipo dejó de ser seguro precisamente tras su servicio en el incidente *"Prosperina"*, justificando técnicamente su baja o reposición.
 
-[Tabla 7: Proceso de Creación: Registro y Acreditación de Personal]
-[Columnas: Elemento, Descripción, Función SC (Solidity), Impacto en SC]
-Identidad Digital, Vinculación de la Wallet de Anvil con los datos del brigadista., registrarPersonal(wallet, nombre, rango), Crea un struct en el mapping de personal autorizado.
-Acreditaciones, Carga de certificaciones, habilidades, cursos y experiencia técnica., añadirAcreditacion(wallet, certificado), Actualiza el array de habilidades permitiendo asignaciones críticas en Fase 2.
-Rango Operativo, Nivel jerárquico que determina los permisos de escritura en el SC., actualizarRango(wallet, nuevoRango), Modifica los permisos de acceso (ej: subir de Brigadista a Jefe de Escena).
-Historial de Campo, Registro dinámico de la veteranía y horas de combate del personal., actualizarExperiencia(wallet, horas, eventoID), Acumula métricas de desempeño inmutables para auditoría y asignación prioritaria.
-[Fin de la Tabla 7]
 
-5.	 Conexión Lógica con Fases Posteriores
+#### 6.1.3. Proceso de Creación: Registro y Acreditación de Personal
+
+Este proceso establece la identidad digital y operativa de cada interviniente. El sistema prioriza la **verificación de disponibilidad en tiempo real** y la **exclusividad de maniobra**, asegurando mediante el Smart Contract que un mismo brigadista no pueda ser asignado a dos eventos simultáneos, garantizando así la integridad de la cadena de mando y la seguridad del personal en campo.
+
+#### **Tabla 7: Registro y Acreditación de Disponibilidad de Personal**
+
+| Elemento | Descripción | Función SC (Solidity) | Impacto en SC |
+| :--- | :--- | :--- | :--- |
+| **Identidad Digital** | Vinculación de billetera con datos operativos del brigadista. | `registrarPersonal(...)` | Crea el registro en `brigadistas` y asigna el rol inicial (RBAC). |
+| **Gobernanza de Roles** | Gestión dinámica de permisos (Jefe de Escena, Operador, etc.). | `grantRole(...)` / `revokeRole(...)` | Modifica los permisos de acceso en tiempo real sin redeplegar el código. |
+| **Control de Despliegue** | Evita que un brigadista sea asignado a dos incendios a la vez. | `despliegueActual[...]` | Bloqueo lógico: garantiza que el personal esté asignado a un único `eventoID`. |
+| **Custodia de Activos** | Seguimiento numérico de equipos bajo responsabilidad del usuario. | `contadorRecursos[...]` | Auditoría: permite saber cuántos activos tiene una persona antes de permitir su liberación. |
+
+
+#### 6.1.4. Conexión Lógica con Fases Posteriores
 
 La calidad de la data en la Fase 1 es lo que permite la rendición de cuentas en las fases 2 y 3.
 
-•	Conexión con la Fase 2 (Durante): Un JEFE_ESCENA solo puede asignarInsumo(...) (Fase 2) si ese insumo existe en el registro de la Fase 1 y su estado no es "Fuera de Servicio".
-•	Conexión con la Fase 3 (Post): El Estado de Retorno es registrado por la BASE_OPERATIVA al momento de recibir físicamente el insumo. El AUDITOR, genera un informe de discrepancias cruzando el estado inicial (Fase 1), los reportes de uso (Fase 2) y el estado final registrado (Fase 3).
+•	**Conexión con la Fase 2 (Durante)**: Un *JEFE_ESCENA* solo puede `asignarInsumo(...)` si ese activo existe en el inventario y su estado es estrictamente **`Disponible`**. Si el equipo está en mantenimiento o bajo otra custodia, el Smart Contract bloquea la transacción automáticamente.
 
-🧱 Diagrama de Bloques: Flujo Operativo de la Fase 1
+•	**Conexión con la Fase 3 (Post)**: El *AUDITOR* cuenta con visibilidad total sobre la integridad de la misión, permitiéndole contrastar los parámetros técnicos de la Fase 1 con los hitos operativos de la Fase 2 y el peritaje físico de la Fase 3. El **Smart Contract**, de forma autónoma, genera alertas inmutables si detecta discrepancias, proporcionando evidencias insobornables que el Auditor utiliza para validar la rendición de cuentas final.
+
+
+#### 6.1.5. 🧱 Diagrama de Bloques: Flujo Operativo de la Fase 1
 ![Diagrama de Bloques Fase 1](imagenes/02_Diag_Flujo_Fase1.png)
  
 Esta fase, asegura la integridad de los datos desde el origen. Si tienes este inventario bien trazado en la Blockchain, cualquier uso o pérdida posterior será irrefutablemente documentado.
 
-🚒 Fase 2: Durante (Asignación y Combate)
+#### 6.2. 🚒 Fase 2: Durante (Asignación y Combate)
 
-🎯 Objetivo Principal
+**🎯 Objetivo Principal**
 
-Registrar en tiempo real (o diferido pero inmutable) qué se está usando, quién lo tiene y cuál es el avance del combate, vinculando los recursos de la Fase 1 con un incidente específico.
+Registrar de manera inmutable qué es lo que se está usando, quién lo tiene y cuál es el avance del combate, vinculando los recursos de la Fase 1 con un incidente específico.
 
-1. Actores
+#### 6.2.1. Actores
 
-•	Jefe de Escena (JEFE_ESCENA): Es el "Director de Orquesta". Abre el evento, solicita recursos y los asigna. Su firma en la dApp valida que el recurso entró a la zona caliente.
-•	Operador/Brigadista (OPERADOR): Es quien está en la línea de fuego. Reporta si una batería se agotó, si una herramienta se rompió o si el consumo de agua fue de "X" litros.
+•	**Jefe de Escena** (*JEFE_ESCENA*): Es el "Director de Orquesta". Abre el evento, solicita recursos y los asigna. Su firma en la dApp valida que el recurso entró a la zona caliente.
+•	**Operador/Brigadista** (*OPERADOR*): Es quien está en la línea de fuego. Reporta si una batería se agotó, si una herramienta se rompió o si el consumo de agua fue de "X" litros.
 
-2. Procesos Centrales y su Impacto en la Blockchain
+#### 6.2.2. Procesos Centrales y su Impacto en la Blockchain
 
 La Fase 2 transforma el estado estático del inventario en un flujo dinámico de eventos. Se compone de dos procesos críticos: la gestión del evento y la trazabilidad de la custodia.
 
-A. Proceso de Gestión del Incidente: Creación y Cierre de Evento
+#### 6.2.2.1. Proceso de Gestión del Incidente: Creación y Cierre de Evento
 
-Este proceso permite al Jefe de Escena activar la logística de emergencia. Sin un evento abierto, no se pueden asignar recursos, lo que evita el uso no autorizado de activos.
+Este proceso permite al **Jefe de Escena** activar la logística de emergencia. Sin un evento abierto, no se pueden asignar recursos, lo que evita el uso no autorizado de activos.
 
-[Tabla 8: Proceso de Gestión del Incidente: Creación y Cierre de Evento]
-[Columnas: Elemento, Descripción, Función SC (Solidity), Impacto en SC]
-Apertura de Incidente, Creación de un nuevo EventoID con datos iniciales de ubicación., abrirEventoIncendio(...), Genera el ancla lógica para toda la trazabilidad de la Fase 2.
-Validación de Actividad, Control de escritura que impide registrar datos en eventos cerrados., require(evento.estado == Activo), Seguridad: Bloquea funciones de gasto (Fase 2) una vez terminada la misión.
-Cierre de Incidente, Finalización táctica y bloqueo de registros de consumo., cerrarIncidente(eventoID), Cambia el evento a Finalizado y los activos a En Retorno.
-Estado "En Retorno", Fase intermedia del activo donde no se permite el gasto de suministros., estado = EnRetorno, Control: Impide el "gasto fantasma" de retardante/agua durante el viaje a base.
-Recepción y Liberación, Confirmación física en Base Operativa y retorno a inventario., retornarInsumo(codigo, estado), El activo vuelve a estar Disponible y se libera de su vinculación al Evento anterior.
-[Fin de la Tabla 8]
+#### **Tabla 8: Proceso de Gestión del Incidente: Creación y Cierre de Evento**
 
-Ejemplo de Inicio de Incidente: El JEFE_ESCENA en el sector "Pasochoa" registra: Evento ID-101, Coordenadas: -0.45, -78.49, Riesgo: Nivel 4 (Alto), Fecha y Hora del Inicio del Evento.
+| Elemento | Descripción | Función SC (Solidity) | Impacto en SC |
+| :--- | :--- | :--- | :--- |
+| **Apertura de Incidente** | Creación de un nuevo EventoID con datos de ubicación y riesgo. | `abrirEventoIncendio(...)` | Genera el ancla lógica para toda la trazabilidad de la Fase 2. |
+| **Validación de Actividad** | Seguridad que impide registrar datos en eventos fuera de servicio. | `require(evento.activo)` | Bloquea funciones de asignación y bitácora una vez terminada la misión. |
+| **Cierre de Incidente** | Finalización táctica y bloqueo de registros operativos. | `cerrarIncidente(eventoID)` | Cambia el evento a Inactivo (`false`) y marca el timestamp de cierre. |
+| **Estado "En Retorno"** | Fase de custodia de vuelta a base (Seguridad Logística). | `EstadoInsumo.EnRetorno` | Disparador automático: todos los recursos asignados cambian de 'En Uso' a 'En Retorno'. |
+| **Inicio de Handshake** | Transición obligatoria hacia la auditoría final de Fase 3. | `iniciarRetorno(...)` | Permite al brigadista desvincularse tempranamente si el equipo requiere taller. |
 
-Ejemplo de cierre de Incidente:
-•	Acción: El Jefe de Escena cierra el Evento ID-101.
-•	Efecto Inmediato: El Camión-01 pasa automáticamente de estado “En Uso” a estado “En Retorno”.
-•	Intento de Fraude: Si alguien intenta registrar que se gastaron 50 galones de espuma retardante en el camino a la Base Operativa usando el ID-101, el Smart Contract lanzará el error: "Transacción Rechazada: Activo en Retorno".
-•	Cierre Total: Solo cuando el Camión llega a la Base Operativa, se verifica el Insumo, su gasto/remanente y se ejecuta la función retornarInsumo, el camión queda libre, con estado “Disponible”.
 
-B. Proceso de Trazabilidad: Asignación y Reporte de Uso
+**Ejemplo de Inicio de Incidente:** El *JEFE_ESCENA* en el sector "Pasochoa" registra: Evento **ID-101**, Coordenadas: -0.45, -78.49, Riesgo: Nivel 4 (Alto).
+
+**Ejemplo de cierre de Incidente:**
+•	**Acción:** El *JEFE_ESCENA* cierra el Evento **ID-101**.
+•	**Efecto Inmediato:** La Motobomba **ID-MB001** pasa automáticamente de estado *“En Uso”* a estado *“En Retorno”*, quedando el evento inactivo.
+•	**Seguridad Logística (Detección de Desvíos):** Cualquier hito o consumo reportado después del cierre táctico quedará grabado con un *timestamp* posterior al `timestampFin` del incidente. Esto permite al **Auditor** identificar intentos de justificar de manera irregular el consumo de insumos durante el trayecto de vuelta.
+•	**Liquidación de Custodia:** La dApp cierra formalmente el procedimiento en la Base Operativa mediante la ejecución del **Handshake de Fase 3**. Este acto técnico es el único que habilita la liberación de la responsabilidad del brigadista y el re-ingreso oficial del equipo al pool de **`Disponibilidad`**.
+
+#### 6.2.2.2. Proceso de Trazabilidad: Asignación y Reporte de Uso
 
 Este es el proceso más dinámico, donde los insumos de la Fase 1 se vinculan a personas y acciones.
 
-[Tabla 9: Proceso de Trazabilidad: Asignación y Reporte de Uso]
-[Columnas: Elemento, Descripción, Función SC (Solidity), Impacto en SC]
-Consulta de Disponibilidad, Verificación de stock local y posibilidad de préstamo inter-base., consultarStock(idBase), Filtro: Si no hay stock, dispara solicitud de transferencia a Base 2.
-Asignación de Activo, Vinculación de un equipo a un evento y un brigadista., asignarInsumo(eventoID, codigo, operador), Cambia el estado a "En Uso" para bloquearlo para otros eventos, y actualiza el custodioActual.
-Despacho de Suministro, Salida física de consumibles desde la base hacia la escena., despacharSuministro(eventoID, idSum, cant), Inventario: Descuenta del stock global y lo asigna como costo al incidente.
-Check-in de Operador, Firma digital del brigadista confirmando la recepción digital y  física., confirmarRecepcion(codigo), Cambio de Custodia: El estado pasa de "Asignado" a "En Uso".
-Reporte de Hito Consolidado, Registro periódico de: Estado Fuego + Consumo + Coordenadas GPS., registrarHito(eventoID, consumo, gps, estadoFuego), Inmutabilidad: Crea una línea de tiempo técnica y situacional (Dashboard).
-Validación de Integridad, Reporte de daños en combate que cambia el estado del activo., reportarDano(codigo, detalle), Alerta: Si se marca como "Dañado", se notifica a la Base para reemplazo.
-Bloqueo por Control, Cierre del flujo de gasto una vez controlado el incendio por el Jefe., cerrarIncidente(eventoID), Seguridad: El evento pasa a Finalizado y los activos a "En Retorno".
-Verificación de Retorno, Validación final de la Base Operativa (Físico vs Digital) al recibir equipo., retornarInsumo(codigo, estadoFinal), Liberación: El activo vuelve a estar "Disponible" para la Fase 1.
-[Fin de la Tabla 9]
+#### **Tabla 9: Proceso de Trazabilidad: Asignación y Reporte de Uso**
 
-Ejemplo 1: Asignación de Activo Fijo y Suministro Inicial
+| Elemento | Descripción | Función SC (Solidity) | Impacto en SC |
+| :--- | :--- | :--- | :--- |
+| **Asignación de Activo** | Entrega oficial de un equipo a un brigadista para la misión. | `asignarInsumo(...)` | Cambia el estado a `EnUso` y establece el `custodioActual` de forma inmutable. |
+| **Bitácora Táctica** | Reporte oficial del Jefe de Escena sobre el avance del fuego. | `registrarBitacoraTactica(...)` | Crea una línea de tiempo táctica vinculada institucionalmente al EventoID. |
+| **Reporte de Hito** | Registro de novedades y estado preventivo del equipo en campo. | `registrarHito(...)` | Permite al brigadista alertar sobre el estado físico del activo durante el combate. |
+| **Cierre de Incidente** | Finalización del evento y bloqueo de asignaciones. | `cerrarIncidente(...)` | Dispara el bloqueo lógico de la Fase 2 y activa el estado de retorno de los activos. |
+| **Iniciación de Entrega** | Solicitud formal del brigadista para entregar su custodia. | `iniciarRetorno(...)` | Paso previo obligatorio para que la Base Operativa pueda auditar el activo en Fase 3. |
 
-•	Contexto: Se despliega el Camión Cisterna ID-CC001 al Incendio ID-INC101.
-•	Acción: El Jefe de Escena ejecuta asignarInsumo(ID-INC101, "ID-CC001", 0xBrigadista9). Adicionalmente, se registran 200 galones de retardante vía despacharSuministro.
-•	Resultado en Blockchain: * Activo: El ID-CC001 queda bloqueado para otros eventos y marcado como "En Uso".
-    * Suministro: El stock en la Base Operativa baja automáticamente de 1000 a 800 galones.
+**Ejemplo 1: Asignación de Activo y Datos de Consumo**
 
-Ejemplo 2: Intento de Despliegue de Radio Averiada
+*   **Contexto**: Se despliega la Motobomba **ID-MB001** al Incendio **ID-INC101**.
+*   **Acción**: El *JEFE_ESCENA* ejecuta `asignarInsumo(ID-INC101, "ID-MB001", 0xBrigadista9)`. La dApp ya cuenta con el `consumoNominal` de **20 litros/hora** registrado en Fase 1.
+*   **Resultado**: El activo queda bloqueado para otros eventos y marcado como *"En Uso"*. La custodia legal pasa íntegramente al brigadista.
 
-•	Contexto: En la Fase 1, la Radio ID-RF045 fue marcada como "En Mantenimiento" tras una falla en la batería. El Jefe de Escena intenta asignársela al Brigadista7 para el Incendio ID-INC101.
-•	Acción: El sistema intenta ejecutar asignarInsumo(ID-INC101, "ID-R45", 0xBrigadista7).
-•	Resultado en Blockchain: TRANSACCIÓN REVERTIDA. El Smart Contract detecta que el estado no es "Disponible" y lanza el error: REVERT: Equipo ID-RF045 fuera de servicio por mantenimiento. La radio no puede salir de la base en el sistema.
+**Ejemplo 2: Filtro de Integridad de Protocolo (Fail-Safe)**
 
-Ejemplo 3: Control de "Gasto Fantasma" en el Cierre
+*   **Contexto**: Un intento de despliegue forzado (vía script o terminal) de la Motobomba **ID-MB002** que está marcada como **"Taller"**.
+*   **Acción**: El sistema (o un atacante) intenta invocar `asignarInsumo(...)` saltándose las restricciones de la interfaz web.
+*   **Resultado**: **TRANSACCIÓN REVERTIDA POR PROTOCOLO**. El Smart Contract actúa como auditor final de seguridad, garantizando que ninguna falla en el frontend o intento de manipulación externa comprometa la integridad física de la misión. El error devuelto es: `REVERT: Insumo no disponible`.
 
-•	Contexto: El incendio se declara controlado. El equipo debe volver a la base.
-•	Acción: Se ejecuta cerrarIncidente(ID-INC101). Esto activa automáticamente el estado "En Retorno" para el Camión ID-CC001.
-•	Intento de Desviación: Si un usuario intenta registrar un consumo de 20 galones de combustible extra usando el ID-INC101 mientras el camión viaja a la base, el Smart Contract rechaza la transacción con el error: "Error: Activo en estado de Retorno - Gasto No Permitido".
-•	Resultado: Se garantiza que el retardante sobrante llegue físicamente a la base para su re-ingreso al inventario.
 
-Ejemplo 4: Recepción y Liberación Final
+**Ejemplo 3: Auditoría de "Gasto Fantasma" Post-Cierre**
 
-•	Contexto: El Camión ID-CC001 llega a la Base Operativa.
-•	Acción: El operador de base ejecuta retornarInsumo("ID-CC001", "Disponible").
-•	Resultado en Blockchain: El activo se desvincula del Incendio 101. El custodio vuelve a ser "Base Central" y el equipo queda habilitado para ser asignado al Incendio 102 o a cualquier otro que se encuentre activo.
+*   **Contexto**: El incendio se declara controlado y el Jefe de Escena ejecuta `cerrarIncidente(ID-INC101)`.
+*   **Intento de Fraude**: Un operador intenta registrar un hito de consumo de **50 litros** de agua extra a las 16:00, pero el evento se cerró oficialmente a las 15:30.
+*   **Resultado Forense**: El registro queda grabado con un *timestamp* posterior al cierre. El **Auditor** identifica esta discrepancia temporal en el Dashboard, marcando el consumo como "No Autorizado" por ocurrir fuera del tiempo táctico de misión.
 
-2.	Componentes Críticos del Flujo
+**Ejemplo 4: Liquidación Final (Handshake de Fase 3)**
+
+*   **Contexto**: El equipo llega a la Base Operativa para su entrega física y digital.
+*   **Acción**: La Base registra el peritaje (`registrarAuditoria`) y el Brigadista firma digitalmente su conformidad (`firmarDeslinde`).
+*   **Resultado**: El activo se libera de la custodia del brigadista, el contador de recursos del personal se limpia y la Motobomba vuelve a estar **`Disponible`** para el próximo incidente.
+
+### **6.2.3. Componentes Críticos del Flujo**
 
 Para garantizar que la trazabilidad sea absoluta y "a prueba de errores humanos", el flujo se apoya en los siguientes pilares lógicos:
 
-•	El Evento (ID Único): No se permite la salida de ningún recurso (activo o suministro) si no existe un EventoID activo en la Blockchain. Esto elimina el uso discrecional de bienes públicos y justifica cada movimiento logístico bajo un incidente real.
-
-•	Gestión Dinámica de la Custodia: La responsabilidad legal se transfiere en tiempo real. Al ejecutar asignarInsumo, el estado cambia de "Disponible" a "En Uso", vinculando la billetera digital (Wallet) del operador al código del activo. En caso de pérdida o daño, la Blockchain señala al responsable sin ambigüedades.
-
-•	Estado de Protección "En Retorno": Este es un componente de seguridad logística que bloquea la función de consumo de suministros una vez que el incidente se marca como finalizado. Evita que los activos (ej. camiones cisterna) sufran "pérdidas misteriosas" de carga o combustible durante el trayecto de vuelta a la base.
-
-•	Filtros de Integridad Pre-Despliegue (Fail-Safe): El Smart Contract actúa como un auditor de seguridad al integrar la validación require(estado == Disponible). Si un equipo fue marcado como "Dañado" o "En Mantenimiento" en la Fase 1, el sistema bloquea automáticamente su salida, protegiendo la integridad física de los brigadistas.
-
-•	Inmutabilidad de Hitos y Consumos: Cada reporte de uso o hito de control del fuego queda grabado con una marca de tiempo (Timestamp) inalterable. Esto genera una línea de tiempo técnica que sirve como evidencia legal y operativa para las auditorías de la Fase 3.
+*   **El Evento (ID Único)**: No se permite la salida de ningún recurso si no existe un `EventoID` activo en la Blockchain. Esto elimina el uso discrecional de bienes y justifica cada movimiento logístico bajo un incidente de incendio real.
+*   **Gestión Dinámica de la Custodia**: La responsabilidad legal se transfiere en tiempo real. Al ejecutar `asignarInsumo`, el estado cambia a *"En Uso"*, vinculando la billetera digital del operador al activo. En caso de pérdida, la Blockchain señala al responsable sin ambigüedades.
+*   **Seguridad por Timestamps**: La inmutabilidad de la hora de red (`block.timestamp`) impide la manipulación de reportes. El Auditor puede contrastar el tiempo de combate oficial contra los reportes de consumo, detectando desviaciones en el uso de insumos (litros reportados vs tiempo de operación).
+*   **Filtros de Integridad (Fail-Safe)**: El Smart Contract actúa como auditor automático al integrar la validación `require(estado == Disponible)`. Si un equipo fue marcado como **"Taller"** en la Fase 1, se bloquea su salida, protegiendo la integridad de los brigadistas en el teatro de operaciones.
+*   **Inmutabilidad de Hitos y Consumos**: Cada reporte de uso o hito de control del fuego queda grabado con una marca de tiempo (Timestamp) inalterable. Esto genera una línea de tiempo técnica que sirve como evidencia legal y operativa para las auditorías de la Fase 3.
 ________________________________________
 
-🧱 Diagrama de Bloques: Flujo Operativo de la Fase 2
+#### 6.2.4.🧱 Diagrama de Bloques: Flujo Operativo de la Fase 2
 
 Aquí visualizamos las decisiones que toma el Jefe de Escena, la Base Operativa y el Operador/Brigadista:
 
 ![Diagrama de Bloques Fase 2](imagenes/03_Diag_Flujo_Fase2.png)
 
-El Panel de Monitoreo para el Jefe de Escena, es un desarrollo opcional en HTML y CSS (revisar el archivo panel_de_control.html) que se encuentra en la carpeta "Documentacion". En su momento se tomará en cuenta para incluirlo como parte del presente proyecto.
+### **6.2.5. Centro de Mando Táctico y Dashboard de Auditoría**
 
-🏗️ Fase 3: Post (Auditoría, Recepción y Rendición de Cuentas)
+El sistema integra un **Panel de Control en tiempo real** que permite al *Auditor* y a los cuerpos de mando visualizar dinámicamente la evolución de todos los incidentes activos. 
+
+*   **Fuentes de Datos Inmutables**: El panel consume directamente los eventos `HitoRegistrado`, `AlertaConsumo` y `DiscrepanciaRegistrada` emitidos por la Blockchain, eliminando cualquier posibilidad de manipulación visual de los datos.
+*   **Integridad Forense**: El Dashboard actúa como un espejo exacto del estado del Smart Contract, permitiendo rastrear la ubicación, los hitos operativos y el consumo de recursos (en **litros**) segundo a segundo.
+*   **Generación de Evidencias**: Desde este centro de mando, el Auditor puede descargar reportes certificados vinculados a los hashes de las transacciones, garantizando una rendición de cuentas absoluta.
+
+
+#### 6.3. 🏗️ Fase 3: Post (Auditoría, Recepción y Rendición de Cuentas)
+
 
 En esta fase, se verifica el estado final de los activos, mostrando la capacidad de la Blockchain para realizar auditorías de estados previos.
 
-🎯 Objetivo Principal
+**🎯 Objetivo Principal**
 
-Cerrar la cadena de custodia, reintegrar los equipos al inventario (Fase 1) y que estén disponibles en cualquier evento en curso (Fase 2), y generar un reporte de transparencia inmutable sobre el costo y recursos del combate.
+Finalizar formalmente la cadena de custodia mediante el **Handshake de Fase 3**, liberando la responsabilidad legal del brigadista y reintegrando los equipos al pool de disponibilidad para futuras misiones. Asimismo, se genera un reporte de transparencia inmutable que consolida los reportes de uso frente al estado físico final, garantizando una rendición de cuentas absoluta sobre la integridad de los recursos del combate.
 
-1. Actor Principal: AUDITOR / BASE_OPERATIVA
 
-En esta fase, la Base Operativa recupera su rol protagónico para recibir el equipo, pero entra en juego el Auditor para validar que lo que salió coincida con lo que regresó.
+#### 6.3.1. Actor Principal: *AUDITOR / BASE_OPERATIVA*
 
-2. Procesos Centrales y su Impacto en la Blockchain (Fase 3)
+En esta fase, la **Base Operativa** recupera su rol protagónico para recibir el equipo, pero entra en juego el **Auditor** para validar que lo que salió coincida con lo que regresó.
+
+#### 6.3.2. Procesos Centrales y su Impacto en la Blockchain (Fase 3)
 
 La Fase 3 evalua el estado del inventario posterior a un evento. Se compone de dos procesos críticos: la recepción y reintegro, y la rendición de cuentas.
 
-A. Proceso de Retorno y Cierre Operativo
+#### 6.3.2.1. Proceso de Retorno y Cierre Operativo
 
 Es el proceso inverso a la asignación. El equipo deja de estar vinculado al evento y regresa a la base.
 
 En la siguiente tabla se describe cómo el activo vuelve a estar "Disponible" y cómo se detectan las fallas de último momento.
 
-[Tabla 10: Proceso de Retorno y Cierre Operativo]
-[Columnas:] Elemento | Descripción | Función SC (Solidity) | Impacto en SC |
-| Verificación de Retorno | Validación final de la Base Operativa (Físico vs Digital) al recibir equipo. | retornarInsumo(codigo, estadoFinal) | Liberación: El activo vuelve a estar "Disponible" para la Fase 1. |
-| Registro de Discrepancia | Alerta automática si el estado reportado en campo no coincide con el recibido. | registrarDiscrepancia(codigo, motivo) | Bloqueo: Envía el activo a revisión técnica y genera una alerta administrativa. |
-| Ticket de Taller (Automático) | Si el equipo llega dañado, se bloquea para el próximo evento. | marcarReparacion(codigo) | Bloqueo: El estado pasa a "En Mantenimiento" (No disponible en Fase 2). |
-| Conciliación de Consumos | Cruce de datos entre el reporte de hito del operador y el remanente físico. | conciliarConsumo(eventoID, idSum, cant) | Auditoría: Detecta "gastos fantasma" o pérdidas no reportadas de suministros. |
-| Reintegro al Stock | El activo operativo se marca como disponible para un nuevo incidente. | actualizarEstado(codigo, Disponible) | Ciclo: El activo vuelve a aparecer en las consultas de la Fase 1. |
-| Liberación de Custodia | Fin de la responsabilidad legal del brigadista sobre el equipo. | actualizarEstado(codigo, Disponible) | Ciclo: El activo vuelve a aparecer en las consultas de la Fase 1. |
+#### **Tabla 10: Auditoría Técnica y Cierre de Custodia (Handshake de Fase 3)**
 
-Ejemplo 1: Retorno Exitoso y Reintegro (Flujo Ideal)
-
-•	Contexto: El Incendio "Laderas del Pichincha ID-INC003" ha sido controlado. El Brigadista número 4 retorna a la base con la Radio ID-RF010.
-•	Acción en la dApp: La Base Operativa recibe el equipo y ejecuta la función retornarInsumo(ID-RF010, Operativo). El sistema verifica que el reporte de hito en la Fase 2 también fue "Operativo".
-•	Resultado Final:
-    o	Se ejecuta insumo.custodio = address(0), liberando la responsabilidad legal del brigadista.
-    o	El estado del activo cambia automáticamente a "Disponible".
-    o	La Radio ID-RF010 aparece instantáneamente en el inventario de la Fase 1 para el siguiente turno.
-
-Ejemplo 2: Detección de Discrepancia y Bloqueo (Flujo de Control)
-
-•	Contexto: Durante el combate, el Operador de la Motobomba ID-MB005 sufrió un golpe en el chasis, pero no lo reportó en sus hitos de la Fase 2 por descuido.
-•	Acción en la dApp: Al recibir el equipo, la Base Operativa detecta el daño físico y marca el estado como "Dañado". El Smart Contract detecta que el último estado reportado en campo fue "Operativo".
-•	Resultado Final:
-    o	Se dispara la función registrarDiscrepancia(ID-MB005, "Daño físico no reportado en Fase 2").
-    o	El sistema emite una Alerta Administrativa vinculada a la Wallet del Operador.
-    o	Se genera automáticamente un Ticket de Taller (marcarReparacion), bloqueando la motobomba en la dApp hasta que un técnico firme su reparación.
-
-Ejemplo 3: Conciliación de Suministros (Consumibles)
-
-•	Contexto: El Camión cisterna ID-CC004 regresa a la base tras despachar retardante en el incendio.
-•	Acción en la dApp: La Base Operativa mide el remanente físico (20 galones) y lo ingresa en conciliarConsumo(ID-INC001, Retardante, 20). El sistema compara esto con los 100 galones despachados inicialmente y los 80 galones que el Jefe de Escena reportó como usados.
-•	Resultado Final:
-    o	Al coincidir los valores (100 - 80 = 20), el Auditor recibe un Check Verde de consistencia.
-    o	El consumo queda sellado en el getReporteEvento, impidiendo que se alteren las cifras de gasto de recursos químicos posteriormente.
-
-B. Proceso de Rendición de Cuentas (Transparencia)
-
-Es la consolidación de toda la "huella digital" del incendio y todos los parámetros que se utilizarán para la rendición de cuentas.
-
-[Tabla 11: Proceso de Rendición de Cuentas]
-[Columnas:] Elemento | Descripción | Función SC (Solidity) | Impacto en SC |
+| Elemento | Descripción | Función SC (Solidity) | Impacto en SC |
 | :--- | :--- | :--- | :--- |
-| Reporte de Consumo Total | Suma automática de todos los LogUso y suministros del evento. | getReporteEvento(eventoID) | Consolidación: Genera un resumen final de gastos para auditoría de costos. |
-| Certificado de Uso (Historial) | Trazabilidad completa de un insumo específico (quién lo tuvo y qué le pasó). | getCertificadoUso(codigo) | Inmutabilidad: Documento digital (NFT o Hash) que certifica el ciclo de vida del equipo. |
-| Log de Telemetría Táctica | Consolidado de los hitos con Timestamp y coordenadas GPS reportadas. | getLogTactico(eventoID) | Evidencia: Prueba fehaciente de la ubicación y avance del personal en el terreno. |
-| Sello de Auditoría Final | Firma digital del Auditor que bloquea el evento para siempre. | finalizarAuditoria(eventoID) | Seguridad Post-Cierre: Impide cualquier alteración de datos tras la revisión oficial. |
-| Verificación de Integridad | Validación de que los hashes de los reportes coincidan con los datos en cadena. | checkIntegrity(eventoID) | Anti-Fraude: Asegura que nadie manipuló la base de datos externa (si la hubiere). |
+| **Auditoría de Recepción** | Ingreso del estado físico y consumo real de litros verificado al llegar a base. | `registrarAuditoria(...)` | Graba la "versión de la base" para ser contrastada con el reporte del brigadista. |
+| **Handshake de Deslinde** | Firma digital de conformidad del brigadista tras la entrega. | `firmarDeslinde(...)` | **Cierre Crítico**: Cruza F1 vs F2 vs F3 y dispara la liberación o el reporte de daños. |
+| **Alerta de Consumo** | Detección automática de exceso de gasto vs capacidad nominal. | `emit AlertaConsumo(...)` | Genera una evidencia inmutable si el equipo gastó más litros de lo técnicamente posible. |
+| **Sello de Discrepancia** | Alerta si el estado reportado en campo difiere del estado recibido. | `emit DiscrepanciaRegistrada(...)` | Marca el activo con una nota de auditoría para revisión técnica inmediata. |
+| **Liberación Logística** | Reintegración automática al inventario de Fase 1. | `EstadoInsumo.Disponible` | Ocurre solo si el Handshake es exitoso y el equipo está operativo. |
 
-Ejemplo 1: Auditoría de Gestión de Recursos (Post-Incidente)
 
-•	Contexto: Un ente de control gubernamental solicita un informe detallado sobre el uso de recursos químicos (retardante) en el "Incendio Sector Norte".
-•	Acción del Auditor: Ejecuta la función getReporteEvento(Evento_Norte). El sistema genera instantáneamente un resumen que suma todos los despachos de la Base y los consumos reportados por los brigadistas en sus hitos.
-•	Resultado de Transparencia: * El reporte muestra un Hash único (Huella Digital).
-    o	Si alguien intentara cambiar una cifra de consumo en la base de datos tradicional para ocultar un faltante, el Hash ya no coincidiría con el registro en la Blockchain, alertando inmediatamente sobre un intento de fraude.
-    o	El Auditor emite el Sello de Auditoría Final, archivando el caso con datos inalterables.
+**Ejemplo 1: Retorno Exitoso y Reintegro (Flujo Ideal)**
 
-Ejemplo 2: Certificación de Historial de Activo (Hoja de Vida Digital del Activo)
+*   **Contexto**: El Incendio "Laderas del Pichincha **ID-INC003**" ha sido controlado. El Brigadista retorna a la base con la Radio **ID-RF010**.
+*   **Acción en la dApp**: La Base registra el peritaje exitoso (`registrarAuditoria`) y el Brigadista ejecuta el **Handshake de Deslinde** (`firmarDeslinde`).
+*   **Resultado Final**:
+    *   El contrato verifica la concordancia de estados F1 vs F2 vs F3.
+    *   Se extingue la responsabilidad legal del brigadista (`custodioActual = address(0)`).
+    *   El activo vuelve automáticamente al estado **`Disponible`**, listo para el siguiente despacho.
 
-•	Contexto: Se planea dar de baja un lote de Radios ID-RF010 al ID-RF-056 y se necesita saber si su desgaste justifica la reposición o si hubo mal uso.
-•	Acción del Consultor/Auditor: Consulta el getCertificadoUso(ID-RF010), getCertificaduUso(ID-RF011), etc.
-•	Resultado de Transparencia: * La dApp despliega toda la "vida" del equipo: cuántos incendios atendió, quiénes fueron sus custodios, cuántas veces fue a taller por el marcarReparacion y qué coordenadas GPS reportó en su último servicio (Log de Telemetría).
-    o	Este nivel de detalle permite una toma de decisiones basada en evidencia, eliminando el favoritismo o las compras innecesarias de equipo.
+**Ejemplo 2: Detección de Discrepancia y Bloqueo (Flujo de Control)**
 
-Ejemplo 3: Detección de Anomalías de Consumo y Diagnóstico de Causa Raíz
+*   **Contexto**: Durante el combate, el brigadista golpeó el chasis de la Motobomba **ID-MB005**, pero no lo reportó en sus hitos de campo (F2).
+*   **Acción en la dApp**: Al recibir el equipo, la Base registra técnicamente el daño como **"Taller"** vía `registrarAuditoria`. El brigadista firma el deslinde.
+*   **Resultado Final**:
+    *   El contrato detecta automáticamente que F2 (Operativo) != F3 (Taller) y emite el evento **`DiscrepanciaRegistrada`**.
+    *   Se genera evidencia inmutable de negligencia u omisión en el reporte de daños del operador.
+    *   El activo queda bloqueado en estado **`Taller`**, desapareciendo de la lista de asignables en la Fase 2.
 
-•	Contexto: Liquidación del "Incendio Sector Sur". El Camión Cisterna ID-CC004 despachó 500 galones. Tiempo operativo en la Blockchain: 3 horas.
-•	Parámetro Base (Fase 1): Consumo Nominal Máximo de 60 galones/hora. (Total teórico máximo para el evento: 180 galones).
-•	Acción en la dApp: El Auditor ejecuta getReporteEvento(ID_INC009). El sistema detecta que el Operador reportó un consumo de 450 galones, excediendo en 270 galones la capacidad física nominal de la bomba.
-•	Resultado del Informe Final (Análisis Multicriterio):
-    o	El sistema genera una Alerta de Desviación Técnica.
-    o	El Auditor redacta un informe exigiendo una inspección dual:
-        1.	Investigación Administrativa: Para descartar posibles actos de corrupción o malversación de insumos por parte de los custodios.
-        2.	Peritaje Técnico: Para determinar si existió una avería en la operación del equipo (ej. fuga en válvulas o falla en el sistema de mezcla) que justifique la pérdida del retardante.
+**Ejemplo 3: Auditoría de Consumo por Desempeño**
 
-🧱 Diagrama de Bloques: Flujo Operativo Fase 3
+*   **Contexto**: Se audita el consumo de combustible de la Motobomba **ID-MB001** tras 5 horas de combate (Consumo nominal: 10 L/h).
+*   **Acción en la dApp**: La Base registra un consumo real verificado de **80 litros** mediante `registrarAuditoria`.
+*   **Resultado Final**:
+    *   El contrato calcula el consumo esperado (5h * 10L/h = 50L).
+    *   Al detectar que 80L > 50L (Exceso del 160%), el sistema dispara automáticamente la **`AlertaConsumo`**.
+    *   El **Auditor** recibe una alerta roja de "Desviación Crítica de Consumo", permitiéndole iniciar un peritaje forense sobre el uso irregular del recurso.
+
+
+#### 6.3.2.2. Proceso de Rendición de Cuentas (Transparencia)
+
+Es la consolidación de toda la "huella digital" del evento y todos los parámetros que se utilizarán para la rendición de cuentas.
+
+#### **Tabla 11: Proceso de Rendición de Cuentas (Fuentes de Verdad de la Blockchain)**
+
+| Elemento | Descripción | Mecanismo SC (Solidity) | Valor para Auditoría |
+| :--- | :--- | :--- | :--- |
+| **Registro de Incidente** | Consulta de metadata: Jefe, ubicación y tiempos tácticos. | Mapeo `incendios(id)` | Prueba legal de la existencia y duración del evento. |
+| **Bitácora de Campo** | Acceso a todos los hitos y reportes técnicos del personal. | Mapeo `bitacoraEvento(id)` | Reconstrucción forense segundo a segundo de lo ocurrido en escena. |
+| **Evidencia de Alertas** | Listado inmutable de abusos de consumo o discrepancias. | `Events (AlertaConsumo)` | Señalamiento técnico inalterable de anomalías logísticas. |
+| **Estado de Activo** | Verificación de la vida útil y mantenimientos tras la misión. | Mapeo `inventario(codigo)` | Certificación del estado de salud del equipo para el próximo despacho. |
+| **Hash de Transacción** | Sello digital que vincula cada acción con un responsable. | `tx.hash (Nativo)` | El "Sello de Auditoría" definitivo que garantiza la inalterabilidad. |
+
+
+**Ejemplo 1: Auditoría de Transparencia de Misión**
+
+*   **Contexto**: Un ente de control gubernamental solicita un informe detallado sobre el uso de recursos en el "Incendio Sector Norte" (**ID-INC101**).
+*   **Acción del Auditor**: Filtra en el Dashboard todos los eventos y bitácoras vinculados institucionalmente a ese ID de evento único.
+*   **Resultado de Transparencia**: El sistema despliega el **Hash de transacción** de cada hito táctico. Si alguien intentara alterar un reporte de consumo en una base de datos tradicional, el Hash original grabado en la Blockchain revelaría la manipulación de forma inmediata, garantizando una rendición de cuentas insobornable.
+
+**Ejemplo 2: Hoja de Vida Digital del Activo (Peritaje y Reposición)**
+
+*   **Contexto**: Se planea renovar un lote de equipos y se necesita saber si su desgaste justifica la reposición o si hubo mal uso por parte del personal operativo.
+*   **Acción**: El Auditor consulta el historial operativo de un activo (ej. **ID-MB002**) a través del mapeo público de la `bitacoraEvento`.
+*   **Resultado de Transparencia**: Se despliega toda la "vida técnica" del equipo: cuántos incendios atendió, quiénes fueron sus custodios legales y cuántas veces el contrato emitió el evento **`DiscrepanciaRegistrada`** por daños no reportados. Esto permite una toma de decisiones estratégica basada en evidencia, eliminando el favoritismo o las compras innecesarias.
+
+**Ejemplo 3: Diagnóstico de Causa Raíz (Detección de Anomalías de Consumo)**
+
+*   **Contexto**: Liquidación del "Incendio Sector Sur". El Camión **ID-CC004** reportó un consumo real verificado de **450 litros** tras 3 horas de operación en la Blockchain.
+*   **Parámetro Base (Fase 1)**: El equipo tiene registrado un **Consumo Nominal Máximo** de 60 litros/hora (Total teórico esperado: 180 litros).
+*   **Resultado del Informe Final**: Al detectar un exceso masivo (250% sobre lo nominal), el sistema dispara automáticamente la **`AlertaConsumo`**. El Auditor redacta un informe exigiendo una inspección dual: administrativa (para descartar malversación de insumos) y peritaje técnico (para identificar averías mecánicas no detectadas durante el hito de campo).
+
+
+#### 6.3.3. 🧱 Diagrama de Bloques: Flujo Operativo Fase 3
+
 ![Diagrama de Bloques Fase 3](imagenes/04_Diag_Flujo_Fase3.png)
  
-📝 Explicación de la Lógica de Control en la Fase 3
+#### 6.3.4. 📝 Explicación de la Lógica de Control en la Fase 3
+
 
 En esta etapa, los nodos de decisión no son simples filtros de paso, sino mecanismos de auditoría automatizada que confrontan la realidad física del retorno con la memoria inmutable grabada en las fases anteriores.
 
-1. Verificación de Integridad de Estado (Estado Actual vs. Fase 2)
+#### 6.3.4.1. Verificación de Integridad de Estado (Estado Actual vs. Fase 2)
 
 Este es el primer filtro de seguridad de la dApp. El sistema compara el estado reportado por la Base Operativa al recibir el equipo frente al último hito de control registrado en la Fase 2.
 •	Si NO ES IGUAL: Se detecta una inconsistencia física (ej. un equipo roto que se reportó como operativo en campo). El flujo se desvía inmediatamente al bloque "Abrir Investigación", vinculando permanentemente la Wallet del Operador responsable a una Alerta de Discrepancia.
 •	Si ES IGUAL: El sistema valida la honestidad y diligencia del personal en el reporte de novedades y permite avanzar al siguiente control técnico.
 
-2. Validación de Consumo Nominal (Filtro de Eficiencia Técnica)
+#### 6.3.4.2. Validación de Consumo Nominal (Filtro de Eficiencia Técnica)
 
 Para los insumos que aplique (como motobombas o cisternas), el Smart Contract ejecuta un cálculo en tiempo real: (Tiempo de operación × Consumo nominal pre-registrado).
 
 •	Resultado SI (Correcto): El consumo reportado es físicamente posible. El Auditor procede a la "Auditoria Interna Aprobada", lo que dispara la liberación total del activo.
 •	Resultado NO (Anomalía): Se detecta un consumo excesivo que no coincide con la capacidad técnica del equipo. El sistema deriva el caso al bloque de "Investigación" para determinar si existen posibles actos de corrupción o una avería técnica no detectada.
 
-3. Resolución y Destino Final del Activo
+#### **6.3.4.3. Resolución y Destino Final del Activo**
 
-Tras la intervención del Auditor (ya sea por flujo regular o por investigación), el sistema determina el destino del bien en la Blockchain para cerrar el ciclo:
 
-•	Liberación de Custodia (Paz y Salvo): Se ejecuta la función insumo.custodio = address(0), extinguiendo la responsabilidad legal del brigadista sobre el recurso.
-•	Reintegro al Stock (Estado = Disponible): El activo vuelve a la "percha virtual", apareciendo nuevamente como elegible en la Fase 1 para el siguiente despacho.
-•	Bloqueo por Excepción (Estado = Mantenimiento/Investigación): Si el resultado de la investigación arroja una falla técnica o mal uso, el activo queda bloqueado en la dApp. Esto obliga a que el proceso regrese a la Fase 1 para su reparación certificada o reposición, impidiendo que un equipo no apto salga a una nueva emergencia.
+Tras la validación del Handshake de Fase 3, el Smart Contract determina el destino del bien para cerrar el ciclo logístico de forma inmutable:
+
+*   **Liberación de Custodia (Paz y Salvo)**: Se ejecuta automáticamente `inventario[ID].custodioActual = address(0)`, extinguiendo la responsabilidad legal del brigadista y limpiando su contador de recursos activos.
+*   **Reintegro al Pool de Disponibilidad**: Si el peritaje es satisfactorio, el activo vuelve al estado **`Disponible`**, apareciendo instantáneamente como elegible en la Fase 1 para el siguiente despacho.
+*   **Bloqueo por Anomalía (Estado = Taller)**: Si se detecta una discrepancia física o daño, el activo queda bloqueado en estado **`Taller`**. Esto obliga a que el proceso regrese a la Fase 1 para su reparación certificada, impidiendo que un equipo no apto sea asignado a una nueva emergencia.
+
 
