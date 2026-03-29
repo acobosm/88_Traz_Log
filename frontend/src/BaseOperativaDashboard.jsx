@@ -30,14 +30,17 @@ const BaseOperativaDashboard = ({ contract, account, inventory, personnel, loadi
                     results.data.forEach((row, index) => {
                         const codigoId = (row.codigo_id || row.codigo || '').trim();
                         const descripcion = (row.descripcion || '').trim();
-                        const consumoRaw = row.consumo_nominal_ml_h || row.consumo || 0;
+                        const consumoRaw = row.consumo_nominal_L_h || row.consumo_nominal_ml_h || row.consumo || 0;
+
                         if (codigoId && descripcion) {
                             const numConsumo = Number(consumoRaw);
                             const hash = ethers.keccak256(ethers.toUtf8Bytes(codigoId));
                             if (!currentHashes.has(hash)) {
                                 codigos.push(hash);
                                 descripciones.push(`${codigoId} | ${descripcion}`);
-                                consumos.push(BigInt(numConsumo));
+                                const consumoML = Math.round(Number(numConsumo) * 1000);
+                                consumos.push(BigInt(consumoML));
+
                             }
                         }
                     });

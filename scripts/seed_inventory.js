@@ -23,14 +23,18 @@ async function main() {
         { id: "ID-PA001", desc: "Pala (Control de puntos calientes)", consumo: 0 },
 
         // 2. Equipos Motorizados (Con Consumo Nominal ml/h)
-        { id: "ID-MB001", desc: "Motobomba Portátil Waterax Mark-3", consumo: 4000 }, // 4L/h
+        { id: "ID-MB001", desc: "Motobomba Portátil Waterax Mark-3", consumo: 4 }, // 4L/h
+
         { id: "ID-MG001", desc: "Tramo de Manguera de Incendio 1.5 pulg", consumo: 0 },
         { id: "ID-MX001", desc: "Mochila de Agua (Bomba de Espalda 20L)", consumo: 0 },
 
         // 3. Vehículos y Logística
-        { id: "ID-V4001", desc: "Vehículo 4x4 Transporte Brigada", consumo: 10000 }, // 10L/h
-        { id: "ID-AM001", desc: "Ambulancia Soporte Vital", consumo: 8000 }, // 8L/h
-        { id: "ID-TC001", desc: "Vehículo Cisterna (Tanquero) 2000G", consumo: 15000 }, // 15L/h
+        { id: "ID-V4001", desc: "Vehículo 4x4 Transporte Brigada", consumo: 10 }, // 10L/h
+
+        { id: "ID-AM001", desc: "Ambulancia Soporte Vital", consumo: 8 }, // 8L/h
+
+        { id: "ID-TC001", desc: "Vehículo Cisterna (Tanquero) 2000G", consumo: 15 }, // 15L/h
+
 
         // 4. Comunicaciones y Comando
         { id: "ID-RD001", desc: "Radio Portátil Motorola DGP8550e", consumo: 0 },
@@ -45,7 +49,8 @@ async function main() {
 
     console.log("Inventario preparado para carga inicial (Auditoría de Consumo habilitada):");
     resources.forEach(res => {
-        const consumoTxt = res.consumo > 0 ? ` [Consumo: ${res.consumo} ml/h]` : "";
+        const consumoTxt = res.consumo > 0 ? ` [Consumo: ${res.consumo} L/h]` : "";
+
         console.log(` - [${res.id}]: ${res.desc}${consumoTxt}`);
     });
 

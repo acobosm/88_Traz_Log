@@ -46,32 +46,34 @@ contract SeedTrazabilidadTemp is Script {
         address loyd = address(0x71bE63f3384f5fb98995898A86B02Fb2426c5788);
         registrarSiNoExiste(trazabilidad, loyd, "Loyd Forger (Brigadista 5)", "Combate", OPERADOR_ROLE);
 
-        // 2. Registro Masivo de Insumos (9 x Categoria | Excepciones: 10 y 12)
-        uint256 totalItems = 157;
+        // 2. Registro de Inventario Táctico - Configuración de Sembrado Rápido
+        // Descripción: Registro de 51 ítems (3 por categoría) para optimizar el tiempo de despliegue.
+        // NOTA: Los consumos nominales se han estandarizado a LITROS (ej. 4L en lugar de 4000ml).
+        uint256 totalItems = 51; 
         bytes32[] memory c = new bytes32[](totalItems);
         string[] memory d = new string[](totalItems);
         uint256[] memory cons = new uint256[](totalItems);
         uint256 currentIdx = 0;
 
-        currentIdx = fill(c, d, cons, currentIdx, "ID-HZ", "Herramienta de Zapa (Raspado)", 9, 0);
-        currentIdx = fill(c, d, cons, currentIdx, "ID-MA", "Machete de corte denso", 9, 0);
-        currentIdx = fill(c, d, cons, currentIdx, "ID-PL", "Herramienta Pulaski (Hacha/Azadon)", 9, 0);
-        currentIdx = fill(c, d, cons, currentIdx, "ID-MC", "Rastrillo McLeod (Suelo Mineral)", 9, 0);
-        currentIdx = fill(c, d, cons, currentIdx, "ID-PA", "Pala (Control de puntos calientes)", 9, 0);
-        currentIdx = fill(c, d, cons, currentIdx, "ID-MB", "Motobomba Portatil Waterax Mark-3", 9, 4000);
-        currentIdx = fill(c, d, cons, currentIdx, "ID-MG", "Tramo de Manguera de Incendio 1.5 pulg", 9, 0);
-        currentIdx = fill(c, d, cons, currentIdx, "ID-MX", "Mochila de Agua (Bomba de Espalda 20L)", 9, 0);
-        currentIdx = fill(c, d, cons, currentIdx, "ID-V4", "Vehiculo 4x4 Transporte Brigada", 9, 10000);
-        currentIdx = fill(c, d, cons, currentIdx, "ID-AM", "Ambulancia Soporte Vital", 9, 8000);
-        currentIdx = fill(c, d, cons, currentIdx, "ID-TC", "Vehiculo Cisterna (Tanquero) 2000G", 9, 15000);
-        currentIdx = fill(c, d, cons, currentIdx, "ID-GP", "GPS Garmin (Georreferenciacion)", 9, 0);
-        currentIdx = fill(c, d, cons, currentIdx, "ID-CS", "Casco de Proteccion Forestal", 9, 0);
-        currentIdx = fill(c, d, cons, currentIdx, "ID-GT", "Guantes de Cuero Termicos", 9, 0);
-        currentIdx = fill(c, d, cons, currentIdx, "ID-BT", "Botas de Combate Forestal", 9, 0);
-        
-        // Excepciones
-        currentIdx = fill(c, d, cons, currentIdx, "ID-BF", "Batefuego Forestal (Sofocacion)", 10, 0);
-        currentIdx = fill(c, d, cons, currentIdx, "ID-RD", "Radio Portatil Motorola", 12, 0);
+        // Carga de Equipamiento (3 unidades por categoría)
+        currentIdx = fill(c, d, cons, currentIdx, "ID-HZ", "Herramienta de Zapa (Raspado)", 3, 0);
+        currentIdx = fill(c, d, cons, currentIdx, "ID-MA", "Machete de corte denso", 3, 0);
+        currentIdx = fill(c, d, cons, currentIdx, "ID-PL", "Herramienta Pulaski (Hacha/Azadon)", 3, 0);
+        currentIdx = fill(c, d, cons, currentIdx, "ID-MC", "Rastrillo McLeod (Suelo Mineral)", 3, 0);
+        currentIdx = fill(c, d, cons, currentIdx, "ID-PA", "Pala (Control de puntos calientes)", 3, 0);
+        currentIdx = fill(c, d, cons, currentIdx, "ID-MB", "Motobomba Portatil Waterax Mark-3", 3, 4000);  // 4000 ml = 4L
+        currentIdx = fill(c, d, cons, currentIdx, "ID-MG", "Tramo de Manguera de Incendio 1.5 pulg", 3, 0);
+        currentIdx = fill(c, d, cons, currentIdx, "ID-MX", "Mochila de Agua (Bomba de Espalda 20L)", 3, 0);
+        currentIdx = fill(c, d, cons, currentIdx, "ID-V4", "Vehiculo 4x4 Transporte Brigada", 3, 10000);   // 10000 ml = 10L
+        currentIdx = fill(c, d, cons, currentIdx, "ID-AM", "Ambulancia Soporte Vital", 3, 8000);           // 8000 ml = 8L
+        currentIdx = fill(c, d, cons, currentIdx, "ID-TC", "Vehiculo Cisterna (Tanquero) 2000G", 3, 15000); // 15000 ml = 15L
+        currentIdx = fill(c, d, cons, currentIdx, "ID-GP", "GPS Garmin (Georreferenciacion)", 3, 0);
+        currentIdx = fill(c, d, cons, currentIdx, "ID-CS", "Casco de Proteccion Forestal", 3, 0);
+        currentIdx = fill(c, d, cons, currentIdx, "ID-GT", "Guantes de Cuero Termicos", 3, 0);
+        currentIdx = fill(c, d, cons, currentIdx, "ID-BT", "Botas de Combate Forestal", 3, 0);
+        currentIdx = fill(c, d, cons, currentIdx, "ID-BF", "Batefuego Forestal (Sofocacion)", 3, 0);
+        currentIdx = fill(c, d, cons, currentIdx, "ID-RD", "Radio Portatil Motorola", 3, 0);
+
 
         // Procesar en lotes de 40 para evitar límites de gas
         uint256 batchSize = 40;

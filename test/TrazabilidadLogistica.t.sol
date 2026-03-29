@@ -410,7 +410,7 @@ contract TrazabilidadLogisticaTest is Test {
 
         // Paso 3: Firma Brigadista (Aqui se procesan las alertas)
         vm.expectEmit(true, true, false, true);
-        emit TrazabilidadLogistica.AlertaConsumo(0, codigo, 1000, 2000);
+        emit TrazabilidadLogistica.AlertaConsumo(1, codigo, 1000, 2000);
 
         vm.prank(operador);
         trazabilidad.firmarDeslinde(codigo);
@@ -451,7 +451,7 @@ contract TrazabilidadLogisticaTest is Test {
         vm.prank(operador);
         vm.expectEmit(true, true, false, true);
         emit TrazabilidadLogistica.DiscrepanciaRegistrada(
-            0,
+            1,
             codigo,
             unicode"Dañado fisicamente"
         );

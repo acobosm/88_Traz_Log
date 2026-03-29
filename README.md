@@ -32,15 +32,15 @@ cp .env.example .env
 ```
 *Nota: El archivo `.env` ya viene pre-configurado para funcionar en `localhost` (127.0.0.1).*
 
-### 3. Iniciar la Blockchain Local (Anvil)
-Abra una **nueva terminal** y ejecute:
+### 3. TERMINAL A: Iniciar la Blockchain Local (Anvil)
+Abra una **primera terminal** y ejecute:
 ```bash
 npm run start-anvil
 ```
-*Este comando inicia Anvil con 20 cuentas predeterminadas y persistencia de estado.*
+*Este comando inicia Anvil con 20 cuentas predeterminadas y persistencia de estado. Mantenga esta terminal abierta.*
 
-### 4. Despliegue y Sembrado (Bootstrap)
-En la **terminal principal**, ejecute el script de inicialización automática:
+### 4. TERMINAL B: Despliegue Maestro (Bootstrap)
+Abra una **segunda terminal** y ejecute el script de inicialización automática:
 ```bash
 npm run bootstrap
 ```
@@ -48,24 +48,44 @@ npm run bootstrap
 1. Despliegue del Smart Contract.
 2. Sincronización de la dirección del contrato en el `.env` y el Frontend.
 3. Sincronización de ABIs.
-4. Carga inicial de Inventario y Roles (Alice, Bob, Sung, etc.).
+4. Carga inicial de identidades tácticas (Alice, Bob, Sung, etc.).
 
-### 5. Iniciar la Interfaz Web
+*Nota: Se recomienda esperar a que este proceso termine antes de interactuar con la web para asegurar que todos los roles y recursos estén disponibles en la Blockchain.*
+
+### 5. TERMINAL C: Iniciar la Interfaz Web (Frontend)
+Abra una **tercera terminal** y ejecute:
 ```bash
 cd frontend
 npm run dev
 ```
-Acceda a [http://localhost:5173](http://localhost:5173) en su navegador.
+Acceda a [http://localhost:5173](http://localhost:5173) en su navegador para interactuar con el sistema.
+
 
 ---
 
-## 🖥️ Opción Avanzada: Centro de Mando Táctico (Dashboard)
+## 🔄 Reanudación del Sistema (Persistencia)
 
-Si dispone de **tmux** instalado, puede arrancar todo el ecosistema (Anvil + Bootstrap + Frontend + Logs) en una sola terminal unificada:
+FireOPS cuenta con **persistencia de estado**. Si detiene los servicios o reinicia su equipo, puede retomar la simulación exactamente donde la dejó:
+
+1. **Terminal A**: Ejecute `npm run start-anvil`. Anvil cargará automáticamente el archivo `blockchain_state.json`.
+2. **MetaMask**: Es **obligatorio** realizar un "Reset de Cuenta" (`Configuración > Avanzado > Borrar datos de actividad`) para sincronizar los bloques.
+3. **Terminal B**: Ejecute el Frontend directamente (`cd frontend && npm run dev`).
+
+> [!PRECAUCION]
+> **NO EJECUTE `npm run bootstrap`** si desea mantener los datos actuales. El comando bootstrap despliega un contrato nuevo y sobreescribirá toda la historia registrada en el JSON. Use bootstrap solo para el primer despliegue o para limpiar el sistema por completo.
+
+
+---
+
+## 🖥️ Opción Avanzada: Centro de Mando Táctico (Dashboard) 
+
+Si desea un centro de mando profesional y monitoreo del despliegue en tiempo real, puede instalar **tmux** y ejecutar el siguiente comando, el cual **reemplaza por completo los pasos 3, 4 y 5** detallados anteriormente:
+
 ```bash
 npm run monitor
 ```
-*Este comando divide su pantalla en 4 paneles operativos para un monitoreo en tiempo real de la blockchain y la red.*
+*Este comando arranca todo el ecosistema (Anvil + Bootstrap + Frontend + Logs) en una sola terminal unificada, dividiendo su pantalla en 4 paneles operativos para una visión táctica total de la red.*
+
 
 ---
 

@@ -229,7 +229,7 @@ Se ha incorporado el script `scripts/purge.sh` para garantizar una ejecución li
 ### Despliegue en Red Local (Anvil)
 - **Dirección del Contrato**: `0x5FbDB2315678afecb367f032d93F642f64180aa3`
 - **Hash de Despliegue**: `0x7410016d8bf21e91e34d34be03a74f27a2d873629fe74836788073cab5c02dac`
-- **Carga de Inventario (Seed)**: **157 ítems** y **8 brigadistas** registrados exitosamente (Hash: `0xf9f38a82...`).
+- **Carga de Inventario (Seed)**: **51 ítems** y **8 brigadistas** registrados exitosamente mediante despliegue optimizado.
 - **Estado Técnico**: Contrato verificado, funcional y con gobernanza de roles activa.
 
 
@@ -342,6 +342,8 @@ Se han implementado capas de validación en el frontend para asegurar que el Cen
 ### Archivos de Referencia - Fase 6
 - [AuditorDashboard.jsx](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/frontend/src/AuditorDashboard.jsx) - Centro de supervisión táctica y peritaje blockchain.
 ![11_Auditor_Dashboard](imagenes/11_Auditor_Dashboard.png)
+![11_Auditor_Dashboard_02](imagenes/11_Auditor_Dashboard_02.png)
+![11_Auditor_Dashboard_03](imagenes/11_Auditor_Dashboard_03.png)
 - [App.jsx](file:///home/ebit/projects/0%20CodeCrypto%20Academy/03%20Ethereum%20Practice/Intro%20a%20Proyectos%20de%20Entrenamiento/Proyectos%20obligatorios/88_Traz_Log/frontend/src/App.jsx) - Motor de actas PDF (jsPDF) y lógica de Handshake.
 
 
@@ -383,3 +385,6 @@ Como parte de la demostración de conocimientos avanzados en estándares de toke
 
 
 *Este informe constituye la base técnica para la certificación de la Operación "Simulación Táctica FireOPS" y el cierre del proyecto.*
+
+### Video demostrativo de FireOPS:
+https://1drv.ms/v/c/50c3bed05caa316c/IQARBrVXud6xRpSWykdvVyqYAdET3GLSWVBgI51kr_56p5U?e=zDXhNg

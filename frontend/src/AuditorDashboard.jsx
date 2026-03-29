@@ -63,7 +63,8 @@ const AuditorDashboard = ({ contract, inventory, personnel, incidents, hardRefre
                     return {
                         incidenteId: evt.args[0].toString(),
                         serialId: item ? item.serialId : ('ITEM-' + evt.args[1].substring(2, 6)),
-                        motivo: `🏁 ALERTA DE CONSUMO: Real ${evt.args[3]}L vs Máx ${evt.args[2]}L`
+                        motivo: `🏁 ALERTA DE CONSUMO: Real ${Number(evt.args[3]) / 1000}L vs Máx ${Number(evt.args[2]) / 1000}L`
+
                     };
                 });
 
@@ -266,7 +267,8 @@ const AuditorDashboard = ({ contract, inventory, personnel, incidents, hardRefre
                                                         
                                                         let detalles = `Firma Recepción Base: Recurso retornado con estado [${estadoLabels[Number(evt.args[2])] || 'Desconocido'}].`;
                                                         if (disc) detalles += ` Motivo: ${disc.args[2]}`;
-                                                        if (alert) detalles += ` [AUDITORÍA AUTOMÁTICA] ALERTA DE CONSUMO: Real ${alert.args[3]}L vs Máx ${alert.args[2]}L`;
+                                                        if (alert) detalles += ` [AUDITORÍA AUTOMÁTICA] ALERTA DE CONSUMO: Real ${Number(alert.args[3]) / 1000}L vs Máx ${Number(alert.args[2]) / 1000}L`;
+
                                                         if (!disc && !alert) detalles += ` Recibido conforme.`;
 
                                                         allLogs.push({
@@ -285,7 +287,8 @@ const AuditorDashboard = ({ contract, inventory, personnel, incidents, hardRefre
                                                         allLogs.push({
                                                             timestamp: block.timestamp,
                                                             operador: "AUDITORÍA AUTOMÁTICA",
-                                                            detalles: `ALERTA DE CONSUMO: Real ${evt.args[3]}L vs Máx ${evt.args[2]}L`,
+                                                            detalles: `ALERTA DE CONSUMO: Real ${Number(evt.args[3]) / 1000}L vs Máx ${Number(evt.args[2]) / 1000}L`,
+
                                                             codigoInsumo: insumoHash,
                                                             isAlert: true
                                                         });

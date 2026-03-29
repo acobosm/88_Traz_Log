@@ -50,6 +50,8 @@ function App() {
   const [isAuditor, setIsAuditor] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [isConsultaPublica, setIsConsultaPublica] = useState(false)
+  const [syncError, setSyncError] = useState(null)
+  const [contractError, setContractError] = useState(!CONTRACT_ADDRESS)
   const [contractInstance, setContractInstance] = useState(null)
   const [inventory, setInventory] = useState([])
   const [incidents, setIncidents] = useState([])
@@ -146,14 +148,15 @@ function App() {
 
   // Redirección automática si es Brigadista y no tiene otros roles (Top-level Hook)
   useEffect(() => {
-    if (account && !loading && !isBaseOperativa && !isJefeEscena && !isAuditor && !isAdmin && personnel.length > 0) {
+    // PROTECCIÓN TÁCTICA: No redirigir si el sistema está cargando o tiene errores de sincronización
+    if (account && !loading && !syncError && !contractError && !isBaseOperativa && !isJefeEscena && !isAuditor && !isAdmin && personnel.length > 0) {
       const isOperador = personnel.some(p => p.address && p.address.toLowerCase() === account.toLowerCase());
       if (isOperador && currentView !== 'field') {
-        console.log("REDIRECCIÓN TÁCTICA: Usuario detectado en campo. Cambiando a vista de Brigadista.");
+        console.log("REDIRECCIÓN TÁCTICA: Usuario detectado como Brigadista Confirmado. Cambiando vista.");
         setCurrentView('field');
       }
     }
-  }, [account, isBaseOperativa, isJefeEscena, isAuditor, isAdmin, loading, personnel, currentView])
+  }, [account, isBaseOperativa, isJefeEscena, isAuditor, isAdmin, loading, personnel, currentView, syncError, contractError])
 
   const openReturnModal = (item) => {
     if (item.estado === 1) {
@@ -185,7 +188,8 @@ function App() {
       const tx = await contractInstance.registrarAuditoria(
         selectedReturnItem.hash,
         returnForm.estadoFinal,
-        BigInt(returnForm.consumoReal),
+        BigInt(Math.round(Number(returnForm.consumoReal) * 1000)),
+
         returnForm.motivoDiscrepancia
       );
       await tx.wait();
@@ -581,13 +585,14 @@ function App() {
       return setStatus({ type: 'error', message: 'MetaMask no detectado.' })
     }
     setLoading(true)
-    // Resetear estados de rol antiguos para evitar persistencia visual durante la transición
-    setIsAdmin(false)
-    setIsAuditor(false)
-    setIsBaseOperativa(false)
-    setIsJefeEscena(false)
-    setIsConsultaPublica(false)
-    setCurrentView('inventory')
+    setSyncError(null)
+    setContractError(!CONTRACT_ADDRESS)
+    
+    // Validar configuración de entorno
+    if (!CONTRACT_ADDRESS) {
+      setLoading(false)
+      return setStatus({ type: 'error', message: 'ERROR CRÍTICO: Dirección de contrato no configurada en el Frontend (.env).' })
+    }
 
     try {
       // Si se solicita forzar permisos (útil para cuando cambian a una cuenta no autorizada)
@@ -627,7 +632,14 @@ function App() {
         contract.hasRole(roleJefe, sanitizedAddress),
         contract.hasRole(roleAuditor, sanitizedAddress),
         contract.hasRole(adminRole, sanitizedAddress)
-      ])
+      ]).catch(err => {
+        console.error("ERROR DE SINCRONIZACIÓN BLOCKCHAIN:", err);
+        // Detectar el error específico de bloque desincronizado (MetaMask stuck)
+        if (err.message.includes("BlockOutOfRange") || err.message.includes("requested block") || err.message.includes("height")) {
+          setSyncError("METAMASK_OUT_OF_SYNC");
+        }
+        throw err;
+      });
 
       console.log("DIAGNÓSTICO DE ROLES [App.jsx]:", {
         address: sanitizedAddress,
@@ -764,7 +776,8 @@ function App() {
           results.data.forEach((row, index) => {
             const codigoId = (row.codigo_id || row.codigo || '').trim()
             const descripcion = (row.descripcion || '').trim()
-            const consumoRaw = row.consumo_nominal_ml_h || row.consumo || 0
+            const consumoRaw = row.consumo_nominal_L_h || row.consumo_nominal_ml_h || row.consumo || 0
+
             if (codigoId && descripcion) {
               totalEnArchivo++
               const numConsumo = Number(consumoRaw)
@@ -780,7 +793,10 @@ function App() {
                 nuevos++
                 codigos.push(hash)
                 descripciones.push(`${codigoId} | ${descripcion}`)
-                consumos.push(BigInt(numConsumo))
+                // El contrato espera mililitros (ml)
+                const consumoML = Math.round(Number(numConsumo) * 1000);
+                consumos.push(BigInt(consumoML))
+
               }
             }
           })
@@ -1021,14 +1037,16 @@ function App() {
           descripcion: finalDesc,
           estado: Number(data.estado),
           estadoLabel: estadoLabels[Number(data.estado)] || "Desconocido",
-          consumoNominal: Number(data.consumoNominal),
+          consumoNominal: Number(data.consumoNominal) / 1000,
+
           custodio: data.custodioActual,
           incidente: assignmentInfo ? `ID-INC${assignmentInfo.id.padStart(3, '0')}` : '---',
           incidenteId: assignmentInfo ? assignmentInfo.id : null,
           incidenteActivo: assignmentInfo ? assignmentInfo.activo : false,
           auditoriaPendiente: pendingAudit.activa ? {
             estadoPropuesto: Number(pendingAudit.estadoPropuesto),
-            consumoReal: pendingAudit.consumoReal.toString(),
+            consumoReal: (Number(pendingAudit.consumoReal) / 1000).toString(),
+
             motivo: pendingAudit.motivo
           } : null
         }
@@ -1051,6 +1069,33 @@ function App() {
       {runtimeError && (
         <div style={{ background: '#ff3232', color: 'white', padding: '1rem', borderRadius: '8px', marginBottom: '2rem', border: '2px solid white' }}>
           <strong>⚠️ FALLO TÁCTICO DETECTADO:</strong> {runtimeError}
+        </div>
+      )}
+
+      {/* ERROR CRÍTICO DE SINCRONIZACIÓN (METAMASK/BLOCKCHAIN) */}
+      {syncError === "METAMASK_OUT_OF_SYNC" && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.95)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'white', padding: '2rem', textAlign: 'center' }}>
+          <div style={{ fontSize: '5rem', marginBottom: '1rem' }}>⚠️</div>
+          <h1 style={{ color: '#ff3232', fontSize: '2.5rem', marginBottom: '1rem' }}>METAMASK DESINCRONIZADO</h1>
+          <p style={{ fontSize: '1.2rem', maxWidth: '600px', marginBottom: '2rem', lineHeight: '1.6' }}>
+            Se ha detectado una discrepancia entre el historial de su billetera y la blockchain actual (Error de Bloques).
+          </p>
+          <div className="card" style={{ background: '#1a1a1a', border: '1px solid #ff3232', padding: '1.5rem', textAlign: 'left', maxWidth: '500px' }}>
+            <h3 style={{ color: '#ff3232', marginTop: 0 }}>SOLUCIÓN INMEDIATA:</h3>
+            <ol style={{ paddingLeft: '1.5rem', lineHeight: '1.8' }}>
+              <li>Abra la extensión de <b>MetaMask</b> en su navegador.</li>
+              <li>Vaya a <b>Configuración &gt; Avanzado</b>.</li>
+              <li>Haga clic en <b>"Borrar datos de la pestaña actividad"</b> (o "Restablecer cuenta").</li>
+              <li>Presione el botón de abajo para intentar de nuevo.</li>
+            </ol>
+          </div>
+          <button className="btn" style={{ marginTop: '2rem', background: '#ff3232', padding: '1rem 3rem' }} onClick={() => window.location.reload()}>REINTENTAR CONEXIÓN</button>
+        </div>
+      )}
+
+      {contractError && (
+        <div style={{ background: '#ff9800', color: 'black', padding: '1rem', textAlign: 'center', fontWeight: 'bold' }}>
+          ⚠️ ADVERTENCIA: No se detectó una dirección de contrato válida. Verifique su archivo .env y reinicie el servidor de desarrollo.
         </div>
       )}
       <header>

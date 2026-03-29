@@ -1,10 +1,11 @@
-codigo_id,descripcion,consumo_nominal_ml_h
+codigo_id,descripcion,consumo_nominal_L_h
 ID-HZ001,Herramienta de Zapa (Raspado),0
 ID-MA001,Machete de corte denso,0
 ID-PL001,Herramienta Pulaski (Hacha/Azadon),0
-ID-MB001,Motobomba Portatil Waterax Mark-3,4000
-ID-V4001,Vehiculo 4x4 Transporte Brigada,10000
-ID-AM001,Ambulancia Soporte Vital,8000
-ID-TC001,Vehiculo Cisterna (Tanquero) 2000G,15000
+ID-MB001,Motobomba Portatil Waterax Mark-3,4
+ID-V4001,Vehiculo 4x4 Transporte Brigada,10
+ID-AM001,Ambulancia Soporte Vital,8
+ID-TC001,Vehiculo Cisterna (Tanquero) 2000G,15
 ID-RD001,Radio Portatil Motorola DGP8550e,0
 ID-GP001,GPS Garmin (Georreferenciacion),0
+

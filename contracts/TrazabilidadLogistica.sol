@@ -506,6 +506,9 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
         AuditoriaPendiente memory aud = auditoriasPendientes[_codigo];
         Insumo storage insumo = inventario[_codigo];
 
+        // Paso 3.19: Registro de hito de firma para historial del brigadista
+        uint256 eventoID = despliegueActual[msg.sender];
+        
         // --- Lógica de Auditoría Automática de Consumo con umbral 20% ---
         if (insumo.consumoNominal > 0 && insumo.inicioUso > 0) {
             uint256 tiempoUsoSegundos = block.timestamp - insumo.inicioUso;
@@ -514,7 +517,7 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
 
             if (aud.consumoReal > (consumoEsperado * 120) / 100) {
                 emit AlertaConsumo(
-                    0,
+                    eventoID,
                     _codigo,
                     consumoEsperado,
                     aud.consumoReal
@@ -523,7 +526,7 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
         }
 
         if (uint8(aud.estadoPropuesto) != uint8(insumo.estadoReportadoF2)) {
-            emit DiscrepanciaRegistrada(0, _codigo, aud.motivo);
+            emit DiscrepanciaRegistrada(eventoID, _codigo, aud.motivo);
         }
 
         insumo.estado = aud.estadoPropuesto;
@@ -535,8 +538,6 @@ contract TrazabilidadLogistica is AccessControl, Pausable, ReentrancyGuard {
         // Limpiamos auditoria
         delete auditoriasPendientes[_codigo];
 
-        // Paso 3.19: Registro de hito de firma para historial del brigadista
-        uint256 eventoID = despliegueActual[msg.sender];
         if (eventoID != 0) {
             string memory detalleFirma = string.concat(
                 "Acta de Devolucion Firmada: ",
