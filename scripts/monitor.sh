@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Script de Monitoreo Táctico - Trazabilidad Logística (Versión Ultra-Estable)
-# Gestiona Anvil, Frontend y Logs en una sola sesión de tmux
+# Script de Monitoreo Táctico - Trazabilidad Logística
+# Gestiona el Frontend, Logs y Consolas en una sola sesión de tmux para el flujo de trabajo con Tenderly
 
 SESSION="TrazabilidadLogistica"
 
@@ -25,21 +25,23 @@ if [ $? != 0 ]; then
   # Dividir panel derecho (1) en dos (Arriba y Abajo)
   tmux split-window -v -t "$SESSION:0.1"
 
-  # Pausa generosa para asegurar que todas las terminales estén listas
-  sleep 3
+  # Pausa para asegurar que todas las terminales estén listas
+  sleep 1
 
-  # Panel 0 (Superior Izquierda): Anvil e Inicialización
-  tmux send-keys -t "$SESSION:0.0" "./scripts/start_anvil.sh" C-m
-  
-  # Esperar a que Anvil esté arriba y ejecutar Bootstrap Automático SOLO si el entorno es nuevo
-  # Panel 1 (Superior Derecha): Consola de Comandos
-  tmux send-keys -t "$SESSION:0.1" "sleep 5 && if [ -f blockchain_state.json ]; then echo -e '\n✨ Estado persistente detectado. Saltando reinicio de contrato.\n👉 Usa ./scripts/bootstrap.sh manualmente si deseas borrar todo y empezar de cero.\n👉 O usa ./scripts/purge.sh para limpieza total.'; else ./scripts/bootstrap.sh; fi" C-m
+  # Panel 0 (Superior Izquierda): Consola Principal
+  # Aquí puedes ejecutar manualmente ./scripts/bootstrap.sh cuando sea necesario
+  tmux send-keys -t "$SESSION:0.0" "echo 'Consola Principal. Ejecuta ./scripts/bootstrap.sh para desplegar en Tenderly.'" C-m
+  tmux send-keys -t "$SESSION:0.0" "clear" C-m
 
-  # Panel 2 (Inferior Izquierda): Frontend (Vite)
-  tmux send-keys -t "$SESSION:0.2" "node scripts/logger.js 'Iniciando Frontend...' && cd frontend && npm run dev" C-m
+  # Panel 1 (Superior Derecha): Frontend (Vite)
+  tmux send-keys -t "$SESSION:0.1" "echo 'Iniciando Frontend...'; cd frontend && npm run dev" C-m
   
-  # Panel 3 (Inferior Derecha): Logs Operativos (LECTURA)
-  tmux send-keys -t "$SESSION:0.3" "touch logs/operaciones.log && tail -f logs/operaciones.log" C-m
+  # Panel 2 (Inferior Izquierda): Logs Operativos (LECTURA)
+  tmux send-keys -t "$SESSION:0.2" "touch logs/operaciones.log && tail -f logs/operaciones.log" C-m
+
+  # Panel 3 (Inferior Derecha): Consola Secundaria
+  tmux send-keys -t "$SESSION:0.3" "echo 'Consola secundaria para comandos (git, etc.)'" C-m
+  tmux send-keys -t "$SESSION:0.3" "clear" C-m
 
   # Ajustar a layout cuadriculado
   tmux select-layout -t "$SESSION" tiled

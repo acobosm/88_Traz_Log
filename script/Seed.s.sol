@@ -22,28 +22,28 @@ contract SeedTrazabilidadTemp is Script {
         trazabilidad.grantRole(JEFE_ESCENA_ROLE, deployer);
 
         // 1. Registro de Personal (Maestro)
-        address base = address(0x70997970C51812dc3A010C7d01b50e0d17dc79C8);
+        address base = vm.envAddress("BASE_OPERATIVA_ADDR");
         registrarSiNoExiste(trazabilidad, base, "Alice Liang (Base 1)", "Logistica", BASE_OPERATIVA_ROLE);
 
-        address aura = address(0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65);
+        address aura = vm.envAddress("JEFE_ESCENA_AURA_ADDR");
         registrarSiNoExiste(trazabilidad, aura, "Aura Frasier (Jefe Escena 2)", "Coordinacion", JEFE_ESCENA_ROLE);
 
-        address tony = address(0x976EA74026E726554dB657fA54763abd0C3a0aa9);
+        address tony = vm.envAddress("JEFE_ESCENA_TONY_ADDR");
         registrarSiNoExiste(trazabilidad, tony, "Tony Corleone (Jefe Escena 4)", "Coordinacion", JEFE_ESCENA_ROLE);
 
-        address sung = address(0x14dC79964da2C08b23698B3D3cc7Ca32193d9955);
+        address sung = vm.envAddress("OPERADOR_SUNG_ADDR");
         registrarSiNoExiste(trazabilidad, sung, "Sung Jin-woo (Brigadista 1)", "Combate", OPERADOR_ROLE);
 
-        address akira = address(0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f);
+        address akira = vm.envAddress("OPERADOR_AKIRA_ADDR");
         registrarSiNoExiste(trazabilidad, akira, "Akira Toriyama (Brigadista 2)", "Combate", OPERADOR_ROLE);
 
-        address samantha = address(0xa0Ee7A142d267C1f36714E4a8F75612F20a79720);
+        address samantha = vm.envAddress("OPERADOR_SAMANTHA_ADDR");
         registrarSiNoExiste(trazabilidad, samantha, "Samantha Tan (Brigadista 3)", "Combate", OPERADOR_ROLE);
 
-        address kazuto = address(0xBcd4042DE499D14e55001CcbB24a551F3b954096);
+        address kazuto = vm.envAddress("OPERADOR_KAZUTO_ADDR");
         registrarSiNoExiste(trazabilidad, kazuto, "Kazuto Kirigaya (Brigadista 4)", "Combate", OPERADOR_ROLE);
 
-        address loyd = address(0x71bE63f3384f5fb98995898A86B02Fb2426c5788);
+        address loyd = vm.envAddress("OPERADOR_LOYD_ADDR");
         registrarSiNoExiste(trazabilidad, loyd, "Loyd Forger (Brigadista 5)", "Combate", OPERADOR_ROLE);
 
         // 2. Registro de Inventario Táctico - Configuración de Sembrado Rápido

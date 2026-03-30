@@ -11,8 +11,11 @@ else
     exit 1
 fi
 
+# --- NUEVA VARIABLE TÉCNICA PARA TENDERLY ---
+CHAIN_ID=${CHAIN_ID:-31337}
+
 echo "------------------------------------------------"
-echo "  INICIANDO BOOTSTRAP TÁCTICO (Reset de Entorno) "
+echo "  INICIANDO BOOTSTRAP TÁCTICO (Red: $CHAIN_ID) "
 echo "------------------------------------------------"
 
 # 2. Desplegar Contrato
@@ -25,7 +28,8 @@ fi
 
 # 3. Capturar nueva dirección desde el broadcast
 # Usamos jq para extraer la dirección del contrato creado en run-latest.json
-JSON_FILE="broadcast/Deploy.s.sol/31337/run-latest.json"
+#JSON_FILE="broadcast/Deploy.s.sol/31337/run-latest.json"
+JSON_FILE="broadcast/Deploy.s.sol/${CHAIN_ID}/run-latest.json"
 if [ ! -f "$JSON_FILE" ]; then
     echo "❌ No se encontró el reporte de despliegue en $JSON_FILE"
     exit 1

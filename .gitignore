@@ -24,10 +24,9 @@ broadcast/
 frontend/node_modules/
 frontend/dist/
 frontend/logs/
-Documentacion/Cronograma.md
 
 # Reportes de Cobertura
 lcov.info
 
 # Herramientas de Diagnóstico Forense (Privado)
-scripts/forensics/
+#scripts/forensics/
